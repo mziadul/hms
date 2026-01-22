@@ -47,6 +47,13 @@ export default function DashboardLayout({ children }: Props) {
         { label: "Add Cost Head", path: "/dashboard/cost-heads/add" },
       ],
     },
+    {
+      label: "Generate Bill",
+      icon: "💰",
+      subMenu: [
+        { label: "Bill Generation", path: "/dashboard/generate-bill" }
+      ],
+    },
     // Add more menus here dynamically if needed
   ];
 
