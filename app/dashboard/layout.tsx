@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 
@@ -8,11 +8,49 @@ interface Props {
   children: React.ReactNode;
 }
 
+interface SubMenuItem {
+  label: string;
+  path: string;
+}
+
+interface MenuItem {
+  label: string;
+  icon?: string; // optional emoji or icon
+  path?: string; // direct link if no subMenu
+  subMenu?: SubMenuItem[];
+}
+
 export default function DashboardLayout({ children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [usersMenuOpen, setUsersMenuOpen] = useState(false);
+  // Define your menus here
+  const menus: MenuItem[] = [
+    {
+      label: "Dashboard",
+      icon: "🏠",
+      path: "/dashboard",
+    },
+    {
+      label: "Users",
+      icon: "👥",
+      subMenu: [
+        { label: "List Users", path: "/dashboard/users" },
+        { label: "Add User", path: "/dashboard/users/add" },
+      ],
+    },
+    {
+      label: "Cost Heads",
+      icon: "💰",
+      subMenu: [
+        { label: "List Cost Heads", path: "/dashboard/cost-heads" },
+        { label: "Add Cost Head", path: "/dashboard/cost-heads/add" },
+      ],
+    },
+    // Add more menus here dynamically if needed
+  ];
+
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const token = localStorage.getItem("userToken");
@@ -20,11 +58,21 @@ export default function DashboardLayout({ children }: Props) {
       router.push("/login");
     }
 
-    // Expand Users menu if current path is under /dashboard/users
-    if (pathname?.startsWith("/dashboard/users")) {
-      setUsersMenuOpen(true);
-    }
+    // Expand menus automatically if pathname matches
+    const newOpenMenus: Record<string, boolean> = {};
+    menus.forEach((menu) => {
+      if (menu.subMenu) {
+        newOpenMenus[menu.label] = menu.subMenu.some((sub) =>
+          pathname?.startsWith(sub.path)
+        );
+      }
+    });
+    setOpenMenus(newOpenMenus);
   }, [pathname, router]);
+
+  const toggleMenu = (label: string) => {
+    setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
 
   const isActive = (path: string) => pathname === path;
 
@@ -40,47 +88,48 @@ export default function DashboardLayout({ children }: Props) {
         <h2 className="text-2xl font-bold mb-6">Admin Panel</h2>
 
         <nav className="flex flex-col gap-2">
-          {/* Single menu item */}
-          <Link
-            href="/dashboard"
-            className={`px-4 py-2 rounded hover:bg-blue-600 transition-colors ${
-              isActive("/dashboard") ? "bg-blue-800 font-bold" : ""
-            }`}
-          >
-            Dashboard 🏠
-          </Link>
+          {menus.map((menu) => (
+            <div key={menu.label}>
+              {menu.subMenu ? (
+                <>
+                  <button
+                    onClick={() => toggleMenu(menu.label)}
+                    className={`w-full flex justify-between items-center px-4 py-2 rounded hover:bg-blue-600 transition-colors ${
+                      openMenus[menu.label] ? "bg-blue-800 font-bold" : ""
+                    }`}
+                  >
+                    <span>
+                      {menu.icon} {menu.label}
+                    </span>
+                    <span>{openMenus[menu.label] ? "▲" : "▼"}</span>
+                  </button>
 
-          {/* Nested menu */}
-          <div>
-            <button
-              onClick={() => setUsersMenuOpen(!usersMenuOpen)}
-              className={`w-full flex justify-between items-center px-4 py-2 rounded hover:bg-blue-600 transition-colors ${
-                pathname?.startsWith("/dashboard/users")
-                  ? "bg-blue-800 font-bold"
-                  : ""
-              }`}
-            >
-              Users 👥
-              <span className="ml-2">{usersMenuOpen ? "▲" : "▼"}</span>
-            </button>
-
-            {usersMenuOpen && (
-              <div className="flex flex-col ml-4 mt-1 gap-1">
+                  {openMenus[menu.label] && (
+                    <div className="flex flex-col ml-4 mt-1 gap-1">
+                      {menu.subMenu.map((sub) => (
+                        <Link
+                          key={sub.path}
+                          href={sub.path}
+                          className={menuItemClass(sub.path)}
+                        >
+                          {sub.label}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
                 <Link
-                  href="/dashboard/users"
-                  className={menuItemClass("/dashboard/users")}
+                  href={menu.path!}
+                  className={`px-4 py-2 rounded hover:bg-blue-600 transition-colors ${
+                    isActive(menu.path!) ? "bg-blue-800 font-bold" : ""
+                  }`}
                 >
-                  List Users
+                  {menu.icon} {menu.label}
                 </Link>
-                <Link
-                  href="/dashboard/users/add"
-                  className={menuItemClass("/dashboard/users/add")}
-                >
-                  Add User
-                </Link>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          ))}
 
           {/* Logout */}
           <button
