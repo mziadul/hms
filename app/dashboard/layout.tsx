@@ -54,6 +54,11 @@ export default function DashboardLayout({ children }: Props) {
         { label: "Bill Generation", path: "/dashboard/generate-bill" }
       ],
     },
+    {
+      label: "Add Meal",
+      icon: "🍲",
+      path: "/dashboard/meal/add",
+    }
     // Add more menus here dynamically if needed
   ];
 
