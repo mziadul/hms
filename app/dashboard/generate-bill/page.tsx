@@ -20,12 +20,14 @@ interface CostHead {
 export default function MonthlyBillForm() {
   const [users, setUsers] = useState<User[]>([]);
   const [costHeads, setCostHeads] = useState<CostHead[]>([]);
+  // কাস্টম ভ্যালু স্টোর করার স্টেট
+  const [customValues, setCustomValues] = useState<Record<string, Record<string, number>>>({});
+  // ইউজারের ইনপুট করা অ্যামাউন্ট স্টোর করার স্টেট
   const [amounts, setAmounts] = useState<Record<string, Record<number, number>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [token, setToken] = useState<string | null>(null);
 
-  // Get token on client only
   useEffect(() => {
     if (typeof window !== "undefined") {
       const userToken = localStorage.getItem("userToken");
@@ -33,49 +35,41 @@ export default function MonthlyBillForm() {
     }
   }, []);
 
-  // Fetch users and cost heads when token is available
   useEffect(() => {
     if (!token) return;
 
-    setLoading(true);
-    setError("");
-
     const fetchData = async () => {
+      setLoading(true);
+      setError("");
       try {
-        const [usersRes, costHeadsRes] = await Promise.all([
+        const [usersRes, headsRes] = await Promise.all([
           axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { params: { action: "getUserList", token } }),
           axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { params: { action: "getCostHeads", token } }),
         ]);
 
-        if (usersRes.data?.error) {
-          setError(usersRes.data.error);
-          setLoading(false);
-          return;
-        }
-
-        if (costHeadsRes.data?.error) {
-          setError(costHeadsRes.data.error);
-          setLoading(false);
-          return;
-        }
-
-        const usersData: User[] = Array.isArray(usersRes.data) ? usersRes.data : [];
-        const costHeadsData: CostHead[] = Array.isArray(costHeadsRes.data) ? costHeadsRes.data : [];
-
+        // ইউজার লিস্ট সেট করা
+        const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
         setUsers(usersData);
-        setCostHeads(costHeadsData);
 
-        // Initialize amounts map
+        // আপনার দেওয়া নতুন ফরম্যাট অনুযায়ী ডাটা ডিকনস্ট্রাক্ট করা
+        const headsData = headsRes.data?.costHeads || [];
+        const customs = headsRes.data?.customValues || {};
+
+        setCostHeads(headsData);
+        setCustomValues(customs);
+
+        // ইনপুট গ্রিড ইনিশিয়ালাইজ করা (ডিফল্ট ০)
         const initialAmounts: Record<string, Record<number, number>> = {};
         usersData.forEach((u) => {
           initialAmounts[u.id] = {};
-          costHeadsData.forEach((c) => {
-            initialAmounts[u.id][c.id] = 0; // start with 0
+          headsData.forEach((c: CostHead) => {
+            initialAmounts[u.id][c.id] = 0;
           });
         });
         setAmounts(initialAmounts);
       } catch (err: any) {
-        setError(err.response?.data?.error || "Failed to fetch data from API.");
+        setError("ডেটা লোড করতে ব্যর্থ হয়েছে। দয়া করে API সংযোগ চেক করুন।");
+        console.error("Fetch Error:", err);
       } finally {
         setLoading(false);
       }
@@ -84,10 +78,7 @@ export default function MonthlyBillForm() {
     fetchData();
   }, [token]);
 
-  if (loading) return <p className="text-gray-600">Loading...</p>;
-  if (error) return <p className="text-red-600">{error}</p>;
-
-  // Handle input change
+  // ম্যানুয়াল ইনপুট হ্যান্ডলার
   const handleChange = (userId: string, headId: number, value: string) => {
     const num = parseFloat(value) || 0;
     setAmounts((prev) => ({
@@ -96,92 +87,121 @@ export default function MonthlyBillForm() {
     }));
   };
 
-  // Distribute a cost head equally among users based on costHeads amount
-  const distributeEqually = (headId: number) => {
+  // স্মার্ট ডিস্ট্রিবিউশন লজিক: কাস্টম ভ্যালু থাকলে আগে সেট হবে, বাকিটা অন্যদের মধ্যে ভাগ হবে
+  const distributeSmartly = (headId: number) => {
     const costHead = costHeads.find((c) => c.id === headId);
-    if (!costHead) return;
+    if (!costHead || costHead.amount === 0) return alert("এই খাতের মোট অ্যামাউন্ট ০");
 
-    const total = costHead.amount;
-    if (total === 0) return alert("Total amount for this cost head is 0");
+    let totalAmountToSplit = costHead.amount;
+    let usersWithoutCustom: User[] = [];
+    const newHeadAmounts: Record<string, number> = {};
 
-    const perUser = parseFloat((total / users.length).toFixed(2));
+    // ১. কাস্টম/ফিক্সড ভ্যালুগুলো আগে ডিডাকশন করা
+    users.forEach((u) => {
+      const customVal = customValues[u.id]?.[String(headId)];
+      if (customVal !== undefined) {
+        newHeadAmounts[u.id] = customVal;
+        totalAmountToSplit -= customVal;
+      } else {
+        usersWithoutCustom.push(u);
+      }
+    });
 
+    // ২. অবশিষ্ট টাকা বাকিদের মধ্যে সমানভাবে ভাগ করা
+    if (usersWithoutCustom.length > 0) {
+      const perUser = parseFloat((totalAmountToSplit / usersWithoutCustom.length).toFixed(2));
+      usersWithoutCustom.forEach((u) => {
+        newHeadAmounts[u.id] = perUser;
+      });
+    }
+
+    // ৩. স্টেট আপডেট করা
     setAmounts((prev) => {
-      const newAmounts = { ...prev };
-      users.forEach((u) => (newAmounts[u.id][headId] = perUser));
-      return newAmounts;
+      const updated = { ...prev };
+      users.forEach((u) => {
+        if (!updated[u.id]) updated[u.id] = {};
+        updated[u.id][headId] = newHeadAmounts[u.id] || 0;
+      });
+      return updated;
     });
   };
 
-  // Calculate totals
-  const userTotal = (userId: string) =>
-    costHeads.reduce((sum, c) => sum + amounts[userId][c.id], 0);
+  // ক্যালকুলেশন ফাংশনসমূহ
+  const userTotal = (userId: string) => 
+    costHeads.reduce((sum, c) => sum + (amounts[userId]?.[c.id] || 0), 0);
 
-  const headTotal = (headId: number) =>
-    users.reduce((sum, u) => sum + amounts[u.id][headId], 0);
+  const headTotal = (headId: number) => 
+    users.reduce((sum, u) => sum + (amounts[u.id]?.[headId] || 0), 0);
 
-  const grandTotal = () =>
+  const grandTotal = () => 
     users.reduce((sum, u) => sum + userTotal(u.id), 0);
+
+  if (loading) return <p className="p-6 text-blue-600 font-bold">লোড হচ্ছে...</p>;
+  if (error) return <p className="p-6 text-red-600">{error}</p>;
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-gray-50">
-        Monthly Cost Sheet
-      </h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-900">মাসিক খরচ বিবরণী (Smart Distribute)</h1>
 
-      <div className="overflow-auto border rounded-lg shadow">
-        <table className="min-w-full table-auto border-collapse">
+      <div className="overflow-x-auto border rounded-xl shadow-lg">
+        <table className="min-w-full border-collapse bg-white text-sm">
           <thead>
             <tr className="bg-purple-700 text-white">
-              <th className="px-4 py-2">Name</th>
+              <th className="px-4 py-3 border border-purple-600 text-left">ইউজারের নাম</th>
               {costHeads.map((head) => (
-                <th key={head.id} className="px-4 py-2">
+                <th key={head.id} className="px-4 py-3 border border-purple-600">
                   <div className="flex flex-col items-center">
-                    <span>{head.name}</span>
+                    <span className="font-semibold">{head.name}</span>
                     <button
-                      className="mt-1 text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded"
-                      onClick={() => distributeEqually(head.id)}
+                      className="mt-2 text-[10px] bg-yellow-400 hover:bg-yellow-500 text-black px-2 py-1 rounded font-bold uppercase tracking-tighter transition-colors"
+                      onClick={() => distributeSmartly(head.id)}
                     >
-                      Distribute
+                      Generate
                     </button>
                   </div>
                 </th>
               ))}
-              <th className="px-4 py-2 bg-purple-800">Total</th>
+              <th className="px-4 py-3 border border-purple-600 bg-purple-800 text-base">ব্যক্তিগত মোট</th>
             </tr>
           </thead>
 
           <tbody>
             {users.map((u) => (
-              <tr key={u.id} className="even:bg-gray-100 dark:even:bg-gray-800">
-                <td className="border px-2 py-1 font-medium">{u.name}</td>
+              <tr key={u.id} className="hover:bg-purple-50 transition-colors border-b">
+                <td className="px-4 py-2 font-medium text-gray-700 bg-gray-50 border">{u.name}</td>
                 {costHeads.map((c) => (
-                  <td key={c.id} className="border px-2 py-1">
+                  <td key={c.id} className="px-2 py-1 border">
                     <input
                       type="number"
                       step="0.01"
-                      className="w-full px-2 py-1 border rounded text-right"
-                      value={amounts[u.id][c.id]}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-right 
+                                focus:outline-none focus:ring-2 focus:ring-purple-400 
+                                /* নিচের ক্লাসগুলো যোগ করুন */
+                                text-gray-900 dark:text-gray-100 
+                                bg-white dark:bg-gray-800"
+                      value={amounts[u.id]?.[c.id] ?? 0}
                       onChange={(e) => handleChange(u.id, c.id, e.target.value)}
                     />
                   </td>
                 ))}
-                <td className="border px-2 py-1 font-bold text-right">
+                <td className="px-4 py-2 font-bold text-right text-purple-700 bg-gray-50 border">
                   {userTotal(u.id).toFixed(2)}
                 </td>
               </tr>
             ))}
           </tbody>
 
-          <tfoot>
-            <tr className="bg-green-600 text-white font-bold">
-              <td className="px-2 py-1">Total</td>
+          <tfoot className="bg-green-600 text-white font-bold">
+            <tr>
+              <td className="px-4 py-3 border border-green-500">খাত ভিত্তিক মোট</td>
               {costHeads.map((c) => (
-                <td key={c.id} className="px-2 py-1 text-right">
+                <td key={c.id} className="px-4 py-3 border border-green-500 text-right">
                   {headTotal(c.id).toFixed(2)}
                 </td>
               ))}
-              <td className="px-2 py-1 text-right">{grandTotal().toFixed(2)}</td>
+              <td className="px-4 py-3 border border-green-500 text-right text-yellow-200 text-lg">
+                {grandTotal().toFixed(2)}
+              </td>
             </tr>
           </tfoot>
         </table>

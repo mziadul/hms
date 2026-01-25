@@ -39,7 +39,7 @@ export default function MealSheet() {
         params: { action: "getMeals", token, year: selectedYear, month: selectedMonth },
       });
       const mealsData = Array.isArray(res.data) ? res.data : [];
-      console.log("Fetched meals test:", mealsData);
+      console.log("Fetched meals:", mealsData);
       
       // Log unique meal types to see what we're working with
       const uniqueTypes = [...new Set(mealsData.map(m => m.type))];
