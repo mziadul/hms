@@ -8,7 +8,7 @@ export default function MealSheet() {
   const [users, setUsers] = useState<any[]>([]);
   const [meals, setMeals] = useState<any[]>([]);
   const [editedMeals, setEditedMeals] = useState<{ [key: string]: string }>({});
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saveStatus, setSaveStatus] = useState<{ [key: string]: "saving" | "saved" | "error" }>({});
   const [activeCell, setActiveCell] = useState<string | null>(null);
@@ -41,14 +41,39 @@ export default function MealSheet() {
     return Array.from({ length: daysCount }, (_, i) => i + 1);
   }, [selectedYear, selectedMonth]);
 
-  // Fetch users
+  // Initial Data Fetch on Mount
   useEffect(() => {
-    if (!token) return;
-    axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
-      params: { action: "getUsers", token } 
-    })
-    .then(res => setUsers(Array.isArray(res.data) ? res.data : []))
-    .catch(() => setError("Failed to fetch users."));
+    const initializeData = async () => {
+      if (!token) return;
+
+      setLoading(true);
+      try {
+        const [usersRes, mealsRes] = await Promise.all([
+          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
+            params: { action: "getUsers", token } 
+          }),
+          axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
+            params: { action: "getMeals", token, year: selectedYear, month: selectedMonth },
+          })
+        ]);
+
+        const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
+        const mealsData = Array.isArray(mealsRes.data) ? mealsRes.data : [];
+
+        setUsers(usersData);
+        setMeals(mealsData);
+
+      } catch (err) {
+        console.error("Initialization error:", err);
+        setError("ডেটা লোড করতে সমস্যা হয়েছে।");
+      } finally {
+        setTimeout(() => {
+          setLoading(false);
+        }, 300);
+      }
+    };
+
+    initializeData();
   }, [token]);
 
   const fetchMeals = async () => {
