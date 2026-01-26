@@ -37,7 +37,7 @@ export default function AddUserPage() {
     try {
       const res = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
         params: {
-          action: "addUser",
+          action: "addUsers",
           token,
           ...form,
         },

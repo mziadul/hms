@@ -44,7 +44,7 @@ export default function MealSheet() {
   useEffect(() => {
     if (!token) return;
     axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
-      params: { action: "getUserList", token } 
+      params: { action: "getUsers", token } 
     })
     .then(res => setUsers(Array.isArray(res.data) ? res.data : []))
     .catch(() => setError("Failed to fetch users."));

@@ -167,7 +167,7 @@ export default function MonthlyBillForm() {
       try {
         const [usersRes, headsRes] = await Promise.all([
           axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
-            params: { action: "getUserList", token } 
+            params: { action: "getUsers", token } 
           }),
           axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
             params: { action: "getCostHeads", token } 
@@ -298,13 +298,6 @@ export default function MonthlyBillForm() {
       });
       
       setMealCosts(newMealCosts);
-      
-      // Show summary
-      alert(`Meal cost calculation completed!\n\n` +
-            `Total meals: ${totalMeals}\n` +
-            `Bazar total: ${bazarTotal.toFixed(2)} Tk\n` +
-            `Meal rate: ${mealRate.toFixed(2)} Tk\n` +
-            `Number of bazar records: ${bazarCosts.length}`);
       
     } catch (err) {
       setError("Failed to fetch meal data.");

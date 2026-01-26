@@ -20,7 +20,7 @@ export default function UsersPage() {
 
     axios
       .get(process.env.NEXT_PUBLIC_GAS_URL!, {
-        params: { action: "getUserList", token },
+        params: { action: "getUsers", token },
       })
       .then((res) => {
         if (Array.isArray(res.data)) {
