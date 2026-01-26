@@ -4,7 +4,7 @@
  * Usage:
  * - POST action=login, email, password => returns {token} if valid
  * - POST action=addUser, ...fields..., token => adds user if token valid
- * - GET  action=getUserList => returns all users
+ * - GET  action=getUsers => returns all users
  */
 
 const TOKEN_SECRET = 'REPLACE_WITH_RANDOM_SECRET'; // Change this!
@@ -14,8 +14,21 @@ function doPost(e) {
   var action = e.parameter.action;
   if (action === 'login') {
     return loginUser(e);
-  } else if (action === 'addUser') {
-    return addUserWithToken(e);
+  }
+
+  var token = e.parameter.token;
+  if (!token) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  var email = verifyToken(token);
+  if (!email) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'addUser') {
+    return addUser(e);
   } else if (action === "addCostHead") {
     return addCostHead(e);
   } else if (action === "getMeals") {
@@ -30,19 +43,19 @@ function doPost(e) {
 
 function doGet(e) {
   var action = e.parameter.action;
-  if (action === 'getUserList') {
-    // Require token for listing users
-    var token = e.parameter.token;
-    if (!token) {
-      return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token' }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-    var email = verifyToken(token);
-    if (!email) {
-      return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-    return getUserList();
+  var token = e.parameter.token;
+  if (!token) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  var email = verifyToken(token);
+  if (!email) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  if (action === 'getUsers') {
+    return getUsers();
   }
   if (action === "getCostHeads") {
     var costHeadsData = getCostHeads();
@@ -79,14 +92,7 @@ function loginUser(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function addUserWithToken(e) {
-  var token = e.parameter.token;
-  var email = verifyToken(token);
-  if (!email) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  // Only allow if token is valid
+function addUser(e) {
   var id = e.parameter.id;
   var name = e.parameter.name;
   var userEmail = e.parameter.email;
@@ -102,7 +108,7 @@ function addUserWithToken(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function getUserList() {
+function getUsers() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('Users');
   var data = sheet.getDataRange().getValues();
@@ -124,7 +130,6 @@ function getUserList() {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// Simple token: base64(email + timestamp + HMAC)
 function generateToken(email) {
   var ts = new Date().getTime();
   var raw = email + '|' + ts;
@@ -186,9 +191,6 @@ function addCostHead(e) {
   ).setMimeType(ContentService.MimeType.JSON);
 }
 
-/**
- * Get all cost heads
- */
 function getCostHeads() {
   var sheet = initCostHeadsSheet();
   var data = sheet.getDataRange().getValues();
@@ -206,10 +208,6 @@ function getCostHeads() {
   }
 
   return costHeads;
-
-  // return ContentService.createTextOutput(JSON.stringify(costHeads)).setMimeType(
-  //   ContentService.MimeType.JSON
-  // );
 }
 
 function getMeals(e) {
@@ -285,7 +283,7 @@ function getMeals(e) {
 
 function getCustomValues() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("CustomValues"); // শিটের নাম 'CustomValues' হতে হবে
+  var sheet = ss.getSheetByName("CustomValues");
   if (!sheet) return {};
   
   var data = sheet.getDataRange().getValues();
@@ -302,12 +300,6 @@ function getCustomValues() {
   return customs;
 }
 
-/**
- * Add or update multiple meals
- * - token required
- * - admin can provide userId per record, normal users can only add/update their own meals
- * - each record requires: year, month, date, type (B/L/D), amount, optionally userId (admin)
- */
 function addOrUpdateMealsBatch(e) {
   var token = e.parameter.token;
   if (!token) {
@@ -321,7 +313,6 @@ function addOrUpdateMealsBatch(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Get logged-in user info
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var userSheet = ss.getSheetByName("Users");
   var userData = userSheet.getDataRange().getValues();
@@ -341,7 +332,6 @@ function addOrUpdateMealsBatch(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Parse the records array from JSON
   if (!e.parameter.records) {
     return ContentService.createTextOutput(JSON.stringify({ error: "Missing records" }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -355,7 +345,6 @@ function addOrUpdateMealsBatch(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Access Meals sheet
   var sheet = ss.getSheetByName("Meals");
   var data = sheet.getDataRange().getValues();
   var updatedCount = 0;
@@ -369,8 +358,7 @@ function addOrUpdateMealsBatch(e) {
     var amount = parseFloat(rec.amount);
 
     if (!year || !month || !date || !type || isNaN(amount)) {
-      // Skip invalid record
-      return;
+      return; // Skip invalid record
     }
 
     // Determine which user this meal belongs to
