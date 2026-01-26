@@ -45,10 +45,8 @@ function doGet(e) {
     return getUserList();
   }
   if (action === "getCostHeads") {
-    var costHeadsData = getCostHeads(); // আপনার আগের ফাংশন যা অ্যারে রিটার্ন করে
+    var costHeadsData = getCostHeads();
     var customs = getCustomValues();
-    
-    // ব্রাউজার যেন বুঝতে পারে এটি একটি JSON অবজেক্ট
     var result = { 
       costHeads: costHeadsData, 
       customValues: customs 
@@ -56,6 +54,9 @@ function doGet(e) {
     
     return ContentService.createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
+  }
+  if (action === "getBazarCosts") {
+    return getBazarCosts(e);
   }
   return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid action' }))
     .setMimeType(ContentService.MimeType.JSON);
@@ -409,4 +410,114 @@ function addOrUpdateMealsBatch(e) {
     inserted: insertedCount,
     updated: updatedCount
   })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getBazarCosts(e) {
+  // Authentication check
+  var token = e.parameter.token;
+  if (!token) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  var email = verifyToken(token);
+  if (!email) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // Get user info for permission check (optional)
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var userSheet = ss.getSheetByName('Users');
+  var userData = userSheet.getDataRange().getValues();
+  var currentUser = null;
+  
+  for (var i = 1; i < userData.length; i++) {
+    if (userData[i][2] === email) {
+      currentUser = {
+        id: userData[i][0],
+        name: userData[i][1],
+        type: userData[i][4],
+      };
+      break;
+    }
+  }
+  
+  if (!currentUser) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'User not found' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // Collect filter parameters (all optional)
+  var filters = {
+    id: e.parameter.id ? parseInt(e.parameter.id, 10) : null,
+    userId: e.parameter.userId ? parseInt(e.parameter.userId, 10) : null,
+    year: e.parameter.year ? parseInt(e.parameter.year, 10) : null,
+    month: e.parameter.month ? parseInt(e.parameter.month, 10) : null,
+    amount: e.parameter.amount ? parseFloat(e.parameter.amount) : null,
+    status: e.parameter.status || null  // String comparison
+  };
+  
+  // Get BazarCost sheet data
+  var sheet = ss.getSheetByName('BazarCost');
+  if (!sheet) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'BazarCost sheet not found' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  var data = sheet.getDataRange().getValues();
+  var bazarCosts = [];
+  
+  // Skip header row (index 0)
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    
+    // Skip empty rows
+    if (!row[0] && !row[1] && !row[2] && !row[3] && !row[4] && !row[5]) {
+      continue;
+    }
+    
+    // Extract row values based on your column structure:
+    // ID, User ID, Year, Month, Amount, Status
+    var record = {
+      id: row[0],
+      userId: row[1],
+      year: row[2],
+      month: row[3],
+      amount: row[4],
+      status: row[5]
+    };
+    
+    // Apply flexible filtering
+    var shouldInclude = true;
+    
+    // Check each filter - only apply if filter is provided
+    if (filters.id !== null && record.id != filters.id) {
+      shouldInclude = false;
+    }
+    if (filters.userId !== null && record.userId != filters.userId) {
+      shouldInclude = false;
+    }
+    if (filters.year !== null && record.year != filters.year) {
+      shouldInclude = false;
+    }
+    if (filters.month !== null && record.month != filters.month) {
+      shouldInclude = false;
+    }
+    if (filters.amount !== null && record.amount != filters.amount) {
+      shouldInclude = false;
+    }
+    if (filters.status !== null && record.status !== filters.status) {
+      shouldInclude = false;
+    }
+    
+    // Add to results if all filters pass
+    if (shouldInclude) {
+      bazarCosts.push(record);
+    }
+  }
+  
+  // Return JSON response
+  return ContentService.createTextOutput(JSON.stringify(bazarCosts))
+    .setMimeType(ContentService.MimeType.JSON);
 }
