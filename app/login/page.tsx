@@ -3,6 +3,7 @@
 import { useState } from "react";
 import axios from "axios";
 import { useRouter } from "next/navigation";
+import Spinner from "@/components/Spinner";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -47,6 +48,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Spinner isLoading={loading} message="Processing Request..." />
       <form
         onSubmit={handleLogin}
         className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md border border-gray-200"

@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
+import Spinner from "@/components/Spinner";
 
 export default function MealSheet() {
   const [users, setUsers] = useState<any[]>([]);
@@ -261,13 +262,13 @@ export default function MealSheet() {
 
   return (
     <div className="p-4 bg-white dark:bg-gray-900 min-h-screen text-sm">
-      
+      <Spinner isLoading={loading} message="Processing Request..." />
       {/* ফিল্টার সেকশন */}
       <div className="flex gap-4 mb-6 items-end border-b pb-4">
         <div>
           <label className="block text-xs font-bold mb-1">Year</label>
           <select 
-            className="border p-2 rounded text-black" 
+            className="border p-2 rounded" 
             value={selectedYear} 
             onChange={e => setSelectedYear(Number(e.target.value))}
           >
@@ -280,7 +281,7 @@ export default function MealSheet() {
         <div>
           <label className="block text-xs font-bold mb-1">Month</label>
           <select 
-            className="border p-2 rounded text-black" 
+            className="border p-2 rounded" 
             value={selectedMonth} 
             onChange={e => setSelectedMonth(Number(e.target.value))}
           >
