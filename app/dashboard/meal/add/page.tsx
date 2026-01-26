@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import axios from "axios";
 
 export default function MealSheet() {
@@ -9,18 +9,38 @@ export default function MealSheet() {
   const [editedMeals, setEditedMeals] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [saveStatus, setSaveStatus] = useState<{ [key: string]: "saving" | "saved" | "error" }>({});
+  const [activeCell, setActiveCell] = useState<string | null>(null);
 
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
 
   const token = typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
 
-  // মাসের দিন সংখ্যা জেনারেট করা
+  // Dynamic years array: 2024 থেকে current year পর্যন্ত
+  const years = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from(
+      { length: currentYear - 2023 }, 
+      (_, i) => 2024 + i
+    );
+  }, []);
+
+  // Months array with names
+  const months = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => ({
+      value: i + 1,
+      name: new Date(selectedYear, i, 1).toLocaleString('default', { month: 'long' })
+    }));
+  }, [selectedYear]);
+
+  // মাসের দিন সংখ্যা
   const daysInMonth = useMemo(() => {
     const daysCount = new Date(selectedYear, selectedMonth, 0).getDate();
     return Array.from({ length: daysCount }, (_, i) => i + 1);
   }, [selectedYear, selectedMonth]);
 
+  // Fetch users
   useEffect(() => {
     if (!token) return;
     axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
@@ -39,12 +59,6 @@ export default function MealSheet() {
         params: { action: "getMeals", token, year: selectedYear, month: selectedMonth },
       });
       const mealsData = Array.isArray(res.data) ? res.data : [];
-      console.log("Fetched meals:", mealsData);
-      
-      // Log unique meal types to see what we're working with
-      const uniqueTypes = [...new Set(mealsData.map(m => m.type))];
-      console.log("Unique meal types in data:", uniqueTypes);
-      
       setMeals(mealsData);
     } catch (err) {
       setError("ডেটা আনতে সমস্যা হয়েছে।");
@@ -53,44 +67,180 @@ export default function MealSheet() {
     }
   };
 
-  const handleInputChange = (userId: any, day: number, type: string, value: string) => {
-    const key = `${userId}-${day}-${type.toLowerCase()}`;
+  // Debounced save function
+  const [saveTrigger, setSaveTrigger] = useState<{
+    userId: number;
+    day: number;
+    mealType: string;
+    value: string;
+  } | null>(null);
+
+  const debouncedSaveTrigger = useDebounce(saveTrigger, 1500);
+
+  useEffect(() => {
+    if (debouncedSaveTrigger && token) {
+      saveMealToAPI(
+        debouncedSaveTrigger.userId,
+        debouncedSaveTrigger.day,
+        debouncedSaveTrigger.mealType,
+        debouncedSaveTrigger.value
+      );
+    }
+  }, [debouncedSaveTrigger, token]);
+
+  // Save meal to API
+  const saveMealToAPI = useCallback(async (
+    userId: number, 
+    day: number, 
+    mealType: string, 
+    amount: string
+  ) => {
+    if (!token) {
+      setError("Please login first");
+      return false;
+    }
+
+    if (!amount || parseFloat(amount) === 0) {
+      const key = `${userId}-${day}-${mealType.toLowerCase()}`;
+      setSaveStatus(prev => ({ ...prev, [key]: "saved" }));
+      return true;
+    }
+
+    const key = `${userId}-${day}-${mealType.toLowerCase()}`;
+    setSaveStatus(prev => ({ ...prev, [key]: "saving" }));
+
+    try {
+      const record = {
+        userId: userId,
+        year: selectedYear,
+        month: selectedMonth,
+        date: day,
+        type: mealType.toUpperCase(),
+        amount: parseFloat(amount)
+      };
+
+      const response = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
+        params: {
+          action: "updateMeals",
+          token: token,
+          records: JSON.stringify([record])
+        }
+      });
+
+      if (response.data.success) {
+        setSaveStatus(prev => ({ ...prev, [key]: "saved" }));
+        
+        // Update local state
+        setMeals(prev => {
+          const existingIndex = prev.findIndex(m => 
+            m.userId === userId && 
+            m.year === selectedYear && 
+            m.month === selectedMonth && 
+            m.date === day && 
+            m.type === mealType.toUpperCase()
+          );
+          
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = { 
+              ...updated[existingIndex], 
+              amount: parseFloat(amount) 
+            };
+            return updated;
+          } else {
+            return [...prev, {
+              id: prev.length + 1,
+              userId,
+              year: selectedYear,
+              month: selectedMonth,
+              date: day,
+              type: mealType.toUpperCase(),
+              amount: parseFloat(amount)
+            }];
+          }
+        });
+        
+        return true;
+      } else {
+        setSaveStatus(prev => ({ ...prev, [key]: "error" }));
+        setError(`Save failed: ${response.data.error || 'Unknown error'}`);
+        return false;
+      }
+    } catch (err: any) {
+      setSaveStatus(prev => ({ ...prev, [key]: "error" }));
+      setError(`Save failed: ${err.message}`);
+      return false;
+    }
+  }, [token, selectedYear, selectedMonth]);
+
+  // Handle input change
+  const handleInputChange = (
+    userId: number, 
+    day: number, 
+    mealType: string, 
+    value: string
+  ) => {
+    const key = `${userId}-${day}-${mealType.toLowerCase()}`;
+    
     setEditedMeals(prev => ({ ...prev, [key]: value }));
+    setActiveCell(key);
+    
+    setSaveTrigger({
+      userId,
+      day,
+      mealType,
+      value
+    });
   };
 
-  // Helper function to get cell value with proper type mapping
+  // Handle onBlur
+  const handleInputBlur = (
+    userId: number, 
+    day: number, 
+    mealType: string, 
+    value: string
+  ) => {
+    const key = `${userId}-${day}-${mealType.toLowerCase()}`;
+    setActiveCell(null);
+    
+    if (!value || parseFloat(value) === 0) {
+      return;
+    }
+    
+    setSaveTrigger({
+      userId,
+      day,
+      mealType,
+      value
+    });
+  };
+
+  // Helper function to get cell value
   const getCellValue = (userId: number, day: number, mealType: string): string => {
     const key = `${userId}-${day}-${mealType.toLowerCase()}`;
     
-    // 1. Check if user edited this cell
     if (editedMeals[key] !== undefined) {
       return editedMeals[key];
     }
     
-    // 2. Find in fetched meals data
     const meal = meals.find(m => {
-      // User ID match
       const userIdMatch = 
         String(m.userId).trim() === String(userId).trim() ||
         Number(m.userId) === Number(userId);
       
-      // Date match
       const dateMatch = 
         String(m.date).trim() === String(day).trim() ||
         Number(m.date) === Number(day);
       
-      // Month match
       const monthMatch = 
         String(m.month).trim() === String(selectedMonth).trim() ||
         Number(m.month) === Number(selectedMonth);
       
-      // Meal type match - check both letter codes and full words
       const mealTypeLower = mealType.toLowerCase();
       const mTypeLower = String(m.type).toLowerCase();
       
       let typeMatch = false;
       
-      // Map meal types: B/Breakfast, L/Lunch, D/Dinner
       if (mealTypeLower === 'breakfast' || mealTypeLower === 'b') {
         typeMatch = mTypeLower === 'b' || mTypeLower === 'breakfast';
       } else if (mealTypeLower === 'lunch' || mealTypeLower === 'l') {
@@ -102,7 +252,6 @@ export default function MealSheet() {
       return userIdMatch && dateMatch && monthMatch && typeMatch;
     });
     
-    // If meal exists and has amount, return it as string, otherwise return empty string
     if (meal && meal.amount !== undefined && meal.amount !== null) {
       return String(meal.amount);
     }
@@ -117,36 +266,63 @@ export default function MealSheet() {
       <div className="flex gap-4 mb-6 items-end border-b pb-4">
         <div>
           <label className="block text-xs font-bold mb-1">Year</label>
-          <select className="border p-2 rounded text-black" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))}>
-            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+          <select 
+            className="border p-2 rounded text-black" 
+            value={selectedYear} 
+            onChange={e => setSelectedYear(Number(e.target.value))}
+          >
+            <option value="0">Select Year</option>
+            {years.map(year => 
+              <option key={year} value={year}>{year}</option>
+            )}
           </select>
         </div>
         <div>
           <label className="block text-xs font-bold mb-1">Month</label>
-          <select className="border p-2 rounded text-black" value={selectedMonth} onChange={e => setSelectedMonth(Number(e.target.value))}>
-            {Array.from({length: 12}, (_, i) => i + 1).map(m => (
-              <option key={m} value={m}>{new Date(selectedYear, m - 1, 1).toLocaleString('default', { month: 'long' })}</option>
+          <select 
+            className="border p-2 rounded text-black" 
+            value={selectedMonth} 
+            onChange={e => setSelectedMonth(Number(e.target.value))}
+          >
+            <option value="0">Select Month</option>
+            {months.map(month => (
+              <option key={month.value} value={month.value}>
+                {month.name}
+              </option>
             ))}
           </select>
         </div>
-        <button onClick={fetchMeals} className="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-md">
-          {loading ? "Loading..." : "Filter & Call Data"}
+        <button 
+          onClick={fetchMeals} 
+          className="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-md"
+          disabled={loading}
+        >
+          {loading ? "Loading..." : "Filter & Load Data"}
         </button>
       </div>
 
-      {/* Error display */}
-      {error && <div className="mb-4 p-2 bg-red-100 text-red-700 rounded">{error}</div>}
-
-      {/* Data summary */}
-      <div className="mb-4 p-2 bg-blue-50 dark:bg-blue-900/20 text-xs rounded">
-        <div className="font-bold mb-1">Data Summary (January 2026):</div>
-        <div>• User 1, Date 1: B=0.5, D=1</div>
-        <div>• User 1, Date 2: No data</div>
-        <div>• User 2, Date 1: B=0.5</div>
-        <div>• User 2, Date 2: D=1</div>
-        <div className="mt-2 text-green-600 font-bold">
-          Note: Database seems to use single letters (B, D) for meal types
+      {/* Status indicators */}
+      <div className="mb-4 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs">
+        <div className="flex items-center gap-4 mb-2">
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
+            <span>Saving (auto-save in 1.5s)</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+            <span>Saved to Google Sheets</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+            <span>Error - Click to retry</span>
+          </div>
         </div>
+        {activeCell && (
+          <div className="text-blue-600">
+            ⚡ Editing cell: {activeCell}
+          </div>
+        )}
+        {error && <div className="text-red-600">{error}</div>}
       </div>
 
       {/* টেবিল */}
@@ -156,7 +332,11 @@ export default function MealSheet() {
             <tr>
               <th className="border p-2 min-w-[80px]">Date</th>
               {users.map(user => (
-                <th key={user.id} className="border p-2 min-w-[150px] bg-blue-50 dark:bg-blue-900/20 text-black dark:text-white" colSpan={3}>
+                <th 
+                  key={user.id} 
+                  className="border p-2 min-w-[150px] bg-blue-50 dark:bg-blue-900/20 text-black dark:text-white" 
+                  colSpan={3}
+                >
                   {user.name}
                 </th>
               ))}
@@ -182,7 +362,6 @@ export default function MealSheet() {
 
                 {/* প্রতি ইউজারের জন্য ৩টি সেল (B, L, D) */}
                 {users.map(user => {
-                  // Define meal types - use single letters to match database
                   const mealTypes = [
                     { key: "b", label: "B" },
                     { key: "l", label: "L" },
@@ -191,30 +370,47 @@ export default function MealSheet() {
                   
                   return mealTypes.map(({ key, label }) => {
                     const value = getCellValue(user.id, day, key);
-                    
-                    // Debug for expected cells
-                    if (
-                      (user.id === 1 && day === 1 && key === "b") ||
-                      (user.id === 1 && day === 1 && key === "d") ||
-                      (user.id === 2 && day === 1 && key === "b") ||
-                      (user.id === 2 && day === 2 && key === "d")
-                    ) {
-                      console.log(`Cell ${user.id}-${day}-${key}:`, value);
-                    }
+                    const cellKey = `${user.id}-${day}-${key}`;
+                    const status = saveStatus[cellKey];
+                    const isActive = activeCell === cellKey;
                     
                     return (
-                      <td key={`${user.id}-${day}-${key}`} className="border p-0 w-12">
-                        <input
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          className={`w-full h-10 text-center bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/30 outline-none ${
-                            value ? "text-black dark:text-white font-medium bg-green-50/50 dark:bg-green-900/10" : "text-gray-400"
-                          }`}
-                          value={value}
-                          onChange={(e) => handleInputChange(user.id, day, key, e.target.value)}
-                          onFocus={(e) => e.target.select()}
-                        />
+                      <td 
+                        key={cellKey} 
+                        className="border p-0 w-12 relative"
+                      >
+                        <div className="relative">
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="0"
+                            className={`w-full h-10 text-center bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/30 outline-none ${
+                              value ? "text-black dark:text-white font-medium" : "text-gray-400"
+                            } ${isActive ? 'ring-2 ring-blue-500' : ''}`}
+                            value={value}
+                            onChange={(e) => handleInputChange(user.id, day, key, e.target.value)}
+                            onBlur={(e) => handleInputBlur(user.id, day, key, e.target.value)}
+                            onFocus={(e) => {
+                              e.target.select();
+                              setActiveCell(cellKey);
+                            }}
+                          />
+                          
+                          {/* Status indicator */}
+                          {status && (
+                            <div className="absolute top-1 right-1" title={status}>
+                              {status === "saving" && (
+                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                              )}
+                              {status === "saved" && (
+                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                              )}
+                              {status === "error" && (
+                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
                     );
                   });
@@ -226,4 +422,21 @@ export default function MealSheet() {
       </div>
     </div>
   );
+}
+
+// useDebounce hook (separate file or same file)
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
 }
