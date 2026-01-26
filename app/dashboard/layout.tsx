@@ -15,16 +15,20 @@ interface SubMenuItem {
 
 interface MenuItem {
   label: string;
-  icon?: string; // optional emoji or icon
-  path?: string; // direct link if no subMenu
+  icon?: string;
+  path?: string;
   subMenu?: SubMenuItem[];
+  isAdminOnly?: boolean; // নতুন প্রপার্টি: শুধু এডমিনদের জন্য কি না
 }
 
 export default function DashboardLayout({ children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+  const [isLoaded, setIsLoaded] = useState(false);
 
-  // Define your menus here
+  // ১. মেনু ডেফিনেশন (isAdminOnly ফ্ল্যাগসহ)
   const menus: MenuItem[] = [
     {
       label: "Dashboard",
@@ -34,6 +38,7 @@ export default function DashboardLayout({ children }: Props) {
     {
       label: "Users",
       icon: "👥",
+      isAdminOnly: true, // Restricted
       subMenu: [
         { label: "List Users", path: "/dashboard/users" },
         { label: "Add User", path: "/dashboard/users/add" },
@@ -42,6 +47,7 @@ export default function DashboardLayout({ children }: Props) {
     {
       label: "Cost Heads",
       icon: "💰",
+      isAdminOnly: true, // Restricted
       subMenu: [
         { label: "List Cost Heads", path: "/dashboard/cost-heads" },
         { label: "Add Cost Head", path: "/dashboard/cost-heads/add" },
@@ -49,28 +55,40 @@ export default function DashboardLayout({ children }: Props) {
     },
     {
       label: "Generate Bill",
-      icon: "💰",
-      subMenu: [
-        { label: "Bill Generation", path: "/dashboard/generate-bill" }
-      ],
+      icon: "🧾",
+      isAdminOnly: true, // Restricted
+      subMenu: [{ label: "Bill Generation", path: "/dashboard/generate-bill" }],
     },
     {
       label: "Add Meal",
       icon: "🍲",
-      path: "/dashboard/meal/add",
+      path: "/dashboard/meal/add", // সবার জন্য উন্মুক্ত
     }
-    // Add more menus here dynamically if needed
   ];
-
-  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const token = localStorage.getItem("userToken");
-    if (!token) {
+    const info = localStorage.getItem("userInfo");
+
+    if (!token || !info) {
       router.push("/login");
+      return;
     }
 
-    // Expand menus automatically if pathname matches
+    const userData = JSON.parse(info);
+    setUserRole(userData.type);
+
+    // ২. অ্যাক্সেস কন্ট্রোল লজিক: 
+    // যদি সাধারণ ইউজার এডমিন ইউআরএল এ ঢোকার চেষ্টা করে, ড্যাশবোর্ডে পাঠিয়ে দাও
+    const currentMenu = menus.find(m => 
+      m.path === pathname || m.subMenu?.some(s => s.path === pathname)
+    );
+
+    if (userData.type !== "admin" && currentMenu?.isAdminOnly) {
+      router.push("/dashboard");
+    }
+
+    // মেনু অটো-এক্সপ্যান্ড লজিক
     const newOpenMenus: Record<string, boolean> = {};
     menus.forEach((menu) => {
       if (menu.subMenu) {
@@ -80,6 +98,7 @@ export default function DashboardLayout({ children }: Props) {
       }
     });
     setOpenMenus(newOpenMenus);
+    setIsLoaded(true);
   }, [pathname, router]);
 
   const toggleMenu = (label: string) => {
@@ -93,31 +112,41 @@ export default function DashboardLayout({ children }: Props) {
       isActive(path) ? "bg-blue-800 font-bold" : ""
     }`;
 
+  // ৩. সাইডবার ফিল্টারিং লজিক
+  const filteredMenus = menus.filter(menu => {
+    if (menu.isAdminOnly && userRole !== "admin") return false;
+    return true;
+  });
+
+  if (!isLoaded) return null; // হাইড্রেশন এরর এড়াতে
+
   return (
     <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Sidebar */}
-      <aside className="w-64 bg-gradient-to-b from-blue-500 to-blue-700 dark:from-gray-800 dark:to-gray-900 text-white p-6 flex flex-col">
-        <h2 className="text-2xl font-bold mb-6">Admin Panel</h2>
+      <aside className="w-64 bg-gradient-to-b from-blue-600 to-blue-800 dark:from-gray-800 dark:to-gray-900 text-white p-6 flex flex-col shadow-xl">
+        <h2 className="text-2xl font-bold mb-6 border-b border-blue-400 pb-4">
+          {userRole === "admin" ? "Admin Panel" : "User Panel"}
+        </h2>
 
         <nav className="flex flex-col gap-2">
-          {menus.map((menu) => (
+          {filteredMenus.map((menu) => (
             <div key={menu.label}>
               {menu.subMenu ? (
                 <>
                   <button
                     onClick={() => toggleMenu(menu.label)}
-                    className={`w-full flex justify-between items-center px-4 py-2 rounded hover:bg-blue-600 transition-colors ${
-                      openMenus[menu.label] ? "bg-blue-800 font-bold" : ""
+                    className={`w-full flex justify-between items-center px-4 py-2 rounded hover:bg-blue-500 transition-colors ${
+                      openMenus[menu.label] ? "bg-blue-700 font-bold" : ""
                     }`}
                   >
-                    <span>
+                    <span className="flex items-center gap-2">
                       {menu.icon} {menu.label}
                     </span>
-                    <span>{openMenus[menu.label] ? "▲" : "▼"}</span>
+                    <span className="text-xs">{openMenus[menu.label] ? "▲" : "▼"}</span>
                   </button>
 
                   {openMenus[menu.label] && (
-                    <div className="flex flex-col ml-4 mt-1 gap-1">
+                    <div className="flex flex-col ml-6 mt-1 gap-1 border-l border-blue-400">
                       {menu.subMenu.map((sub) => (
                         <Link
                           key={sub.path}
@@ -133,8 +162,8 @@ export default function DashboardLayout({ children }: Props) {
               ) : (
                 <Link
                   href={menu.path!}
-                  className={`px-4 py-2 rounded hover:bg-blue-600 transition-colors ${
-                    isActive(menu.path!) ? "bg-blue-800 font-bold" : ""
+                  className={`flex items-center gap-2 px-4 py-2 rounded hover:bg-blue-500 transition-colors ${
+                    isActive(menu.path!) ? "bg-blue-700 font-bold" : ""
                   }`}
                 >
                   {menu.icon} {menu.label}
@@ -143,13 +172,13 @@ export default function DashboardLayout({ children }: Props) {
             </div>
           ))}
 
-          {/* Logout */}
           <button
             onClick={() => {
               localStorage.removeItem("userToken");
+              localStorage.removeItem("userInfo");
               router.push("/login");
             }}
-            className="mt-4 px-4 py-2 rounded bg-red-500 hover:bg-red-600 transition-colors"
+            className="mt-8 px-4 py-2 rounded bg-red-500 hover:bg-red-600 transition-all font-semibold shadow-md"
           >
             Logout 🔒
           </button>
@@ -157,8 +186,10 @@ export default function DashboardLayout({ children }: Props) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 p-8 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-50">
-        {children}
+      <main className="flex-1 p-8 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-50 overflow-y-auto">
+        <div className="max-w-6xl mx-auto">
+          {children}
+        </div>
       </main>
     </div>
   );
