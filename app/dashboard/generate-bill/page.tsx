@@ -242,7 +242,7 @@ export default function MonthlyBillForm() {
       return;
     }
     
-    setMealLoading(true);
+    setLoading(true);
     try {
       const res = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
         params: { 
@@ -304,7 +304,7 @@ export default function MonthlyBillForm() {
       setError("Failed to fetch meal data.");
       console.error("Error fetching meals:", err);
     } finally {
-      setMealLoading(false);
+      setLoading(false);
     }
   }, [token, selectedYear, selectedMonth, bazarTotal, bazarCosts.length, users]);
 
