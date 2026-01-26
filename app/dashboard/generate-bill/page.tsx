@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import axios from "axios";
+import Spinner from "@/components/Spinner";
 
 export interface User {
   id: string;
@@ -436,7 +437,6 @@ export default function MonthlyBillForm() {
     fetchBazarCosts();
   };
 
-  if (loading) return <p className="p-6 text-blue-600 font-bold">Loading...</p>;
   if (error) return (
     <div className="p-6">
       <p className="text-red-600 mb-4">{error}</p>
@@ -451,6 +451,7 @@ export default function MonthlyBillForm() {
 
   return (
     <div className="p-6">
+      <Spinner isLoading={loading} message="Processing Request..." />
       <h1 className="text-2xl font-bold mb-6 text-gray-900">Monthly Bill Statement</h1>
 
       {/* Month/Year Selection and Meal Cost Button */}
