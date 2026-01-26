@@ -1,141 +1,95 @@
 /**
- * Google Apps Script for user login, token auth, and user add
- *
- * Usage:
- * - POST action=login, email, password => returns {token} if valid
- * - POST action=addUser, ...fields..., token => adds user if token valid
- * - GET  action=getUsers => returns all users
+ * Google Apps Script for user login, token auth, and management.
+ * Logic: Configuration -> Security -> Entry Points -> API Methods -> Helpers
  */
 
-const TOKEN_SECRET = 'REPLACE_WITH_RANDOM_SECRET'; // Change this!
+// --- 1. CONFIGURATION ---
+const TOKEN_SECRET = 'REPLACE_WITH_RANDOM_SECRET'; // আপনার গোপন পাসওয়ার্ড দিন
 const TOKEN_EXPIRY_MINUTES = 60;
+
+// --- 2. ENTRY POINTS (GET & POST) ---
 
 function doPost(e) {
   var action = e.parameter.action;
-  if (action === 'login') {
-    return loginUser(e);
-  }
+  
+  // Login is public
+  if (action === 'login') return loginUser(e);
 
-  var token = e.parameter.token;
-  if (!token) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  var email = verifyToken(token);
-  if (!email) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+  // Security Barrier for all other POST actions
+  var currentUser = getAuthorizedUser(e.parameter.token);
+  if (!currentUser) return jsonResponse({ error: 'Invalid or expired token' });
 
-  if (action === 'addUser') {
-    return addUser(e);
-  } else if (action === "addCostHead") {
-    return addCostHead(e);
-  } else if (action === "getMeals") {
-    return getMeals(e);
-  } else if (action === "updateMeals") {
-    return addOrUpdateMealsBatch(e);
+  switch (action) {
+    case 'addUser': return addUser(e);
+    case 'addCostHead': return addCostHead(e);
+    case 'updateMeals': return addOrUpdateMealsBatch(e, currentUser);
+    case 'getMeals': return getMeals(e, currentUser); // consistency check
+    default: return jsonResponse({ error: 'Invalid action' });
   }
-
-  return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid action' }))
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function doGet(e) {
   var action = e.parameter.action;
-  var token = e.parameter.token;
-  if (!token) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  var email = verifyToken(token);
-  if (!email) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+  
+  // Security Barrier for all GET actions
+  var currentUser = getAuthorizedUser(e.parameter.token);
+  if (!currentUser) return jsonResponse({ error: 'Invalid or expired token' });
 
-  if (action === 'getUsers') {
-    return getUsers();
+  switch (action) {
+    case 'getUsers': return getUsers();
+    case 'getCostHeads': 
+      return jsonResponse({ 
+        costHeads: getCostHeads(), 
+        customValues: getCustomValues() 
+      });
+    case 'getBazarCosts': return getBazarCosts(e);
+    case 'getMeals': return getMeals(e, currentUser);
+    default: return jsonResponse({ error: 'Invalid action' });
   }
-  if (action === "getCostHeads") {
-    var costHeadsData = getCostHeads();
-    var customs = getCustomValues();
-    var result = { 
-      costHeads: costHeadsData, 
-      customValues: customs 
-    };
-    
-    return ContentService.createTextOutput(JSON.stringify(result))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  if (action === "getBazarCosts") {
-    return getBazarCosts(e);
-  }
-  return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid action' }))
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
+// --- 3. SECURITY & AUTHENTICATION ---
+
+/**
+ * ইউজার লগইন এবং টোকেন ও বেসিক ইউজার ডাটা রিটার্ন
+ */
 function loginUser(e) {
   var email = e.parameter.email;
   var password = e.parameter.password;
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Users');
-  var data = sheet.getDataRange().getValues();
+  var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users').getDataRange().getValues();
+  
   for (var i = 1; i < data.length; i++) {
     if (data[i][2] == email && data[i][3] == password) {
-      var token = generateToken(email);
-      return ContentService.createTextOutput(JSON.stringify({ token: token }))
-        .setMimeType(ContentService.MimeType.JSON);
+      return jsonResponse({ 
+        token: generateToken(email),
+        user: { id: data[i][0], name: data[i][1], email: data[i][2], type: data[i][4] }
+      });
     }
   }
-  return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid credentials' }))
-    .setMimeType(ContentService.MimeType.JSON);
+  return jsonResponse({ error: 'Invalid credentials' });
 }
 
-function addUser(e) {
-  var id = e.parameter.id;
-  var name = e.parameter.name;
-  var userEmail = e.parameter.email;
-  var password = e.parameter.password;
-  var type = e.parameter.type;
-  var updatedBy = e.parameter.updatedBy;
-  var now = new Date();
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Users');
-  var userRow = [id, name, userEmail, password, type, now, now, updatedBy];
-  sheet.appendRow(userRow);
-  return ContentService.createTextOutput(JSON.stringify({ success: 'User added successfully' }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+/**
+ * টোকেন ভেরিফাই করে ইউজারের অবজেক্ট রিটার্ন করে
+ */
+function getAuthorizedUser(token) {
+  var email = verifyToken(token);
+  if (!email) return null;
 
-function getUsers() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName('Users');
-  var data = sheet.getDataRange().getValues();
-  var users = [];
+  var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users').getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
-    var user = {
-      id: data[i][0],
-      name: data[i][1],
-      email: data[i][2],
-      password: data[i][3],
-      type: data[i][4],
-      createdAt: data[i][5],
-      updatedAt: data[i][6],
-      updatedBy: data[i][7]
-    };
-    users.push(user);
+    if (data[i][2] === email) {
+      return { id: data[i][0], name: data[i][1], type: data[i][4], email: data[i][2] };
+    }
   }
-  return ContentService.createTextOutput(JSON.stringify(users))
-    .setMimeType(ContentService.MimeType.JSON);
+  return null;
 }
 
 function generateToken(email) {
   var ts = new Date().getTime();
   var raw = email + '|' + ts;
   var sig = Utilities.base64Encode(Utilities.computeHmacSha256Signature(raw, TOKEN_SECRET));
-  var token = Utilities.base64Encode(raw + '|' + sig);
-  return token;
+  return Utilities.base64Encode(raw + '|' + sig);
 }
 
 function verifyToken(token) {
@@ -143,242 +97,86 @@ function verifyToken(token) {
     var decoded = Utilities.newBlob(Utilities.base64Decode(token)).getDataAsString();
     var parts = decoded.split('|');
     if (parts.length !== 3) return null;
-    var email = parts[0];
-    var ts = parseInt(parts[1], 10);
-    var sig = parts[2];
-    var raw = email + '|' + ts;
+    var raw = parts[0] + '|' + parts[1];
     var expectedSig = Utilities.base64Encode(Utilities.computeHmacSha256Signature(raw, TOKEN_SECRET));
-    if (sig !== expectedSig) return null;
-    var now = new Date().getTime();
-    if (now - ts > TOKEN_EXPIRY_MINUTES * 60 * 1000) return null;
-    return email;
-  } catch (e) {
-    return null;
-  }
+    if (parts[2] !== expectedSig) return null;
+    if (new Date().getTime() - parseInt(parts[1]) > TOKEN_EXPIRY_MINUTES * 60 * 1000) return null;
+    return parts[0];
+  } catch (e) { return null; }
 }
 
-function initCostHeadsSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("CostHeads");
-  if (!sheet) {
-    sheet = ss.insertSheet("CostHeads");
-    sheet.appendRow(["id", "name", "type", "createdAt", "updatedAt"]);
-  }
-  return sheet;
-}
+// --- 4. CORE API METHODS ---
 
-function addCostHead(e) {
-  var name = e.parameter.name;
-  var type = e.parameter.type;
-
-  if (!name || !type) {
-    return ContentService.createTextOutput(
-      JSON.stringify({ error: "Missing name or type" })
-    ).setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var sheet = initCostHeadsSheet();
-  var data = sheet.getDataRange().getValues();
-
-  // Generate id (incremental)
-  var id = data.length; // row 1 is headers
+/**
+ * নতুন ইউজার অ্যাড করা
+ */
+function addUser(e) {
   var now = new Date();
-
-  sheet.appendRow([id, name, type, now, now]);
-
-  return ContentService.createTextOutput(
-    JSON.stringify({ success: "Cost head added", id: id })
-  ).setMimeType(ContentService.MimeType.JSON);
+  var userRow = [
+    e.parameter.id, e.parameter.name, e.parameter.email, 
+    e.parameter.password, e.parameter.type, now, now, e.parameter.updatedBy
+  ];
+  SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users').appendRow(userRow);
+  return jsonResponse({ success: 'User added successfully' });
 }
 
-function getCostHeads() {
-  var sheet = initCostHeadsSheet();
+/**
+ * সব ইউজারের লিস্ট পাওয়া
+ */
+function getUsers() {
+  var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users').getDataRange().getValues();
+  var users = data.slice(1).map(function(r) {
+    return { id: r[0], name: r[1], email: r[2], type: r[4], createdAt: r[5], updatedAt: r[6], updatedBy: r[7] };
+  });
+  return jsonResponse(users);
+}
+
+/**
+ * মিল ডাটা রিড করা (ফিল্টারসহ)
+ */
+function getMeals(e, currentUser) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Meals");
+  if (!sheet) return jsonResponse([]);
+
+  var fYear = e.parameter.year, fMonth = e.parameter.month, fDate = e.parameter.date, fUserId = e.parameter.userId;
   var data = sheet.getDataRange().getValues();
-  var costHeads = [];
-
-  for (var i = 1; i < data.length; i++) {
-    costHeads.push({
-      id: data[i][0],
-      name: data[i][1],
-      amount: data[i][2],
-      type: data[i][3],
-      createdAt: data[i][4],
-      updatedAt: data[i][5],
-    });
-  }
-
-  return costHeads;
-}
-
-function getMeals(e) {
-  var token = e.parameter.token;
-  if (!token) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "Missing token" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var email = verifyToken(token);
-  if (!email) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "Invalid or expired token" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // Get logged-in user info
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var userSheet = ss.getSheetByName("Users");
-  var userData = userSheet.getDataRange().getValues();
-  var currentUser = null;
-  for (var i = 1; i < userData.length; i++) {
-    if (userData[i][2] === email) {
-      currentUser = {
-        id: userData[i][0],
-        name: userData[i][1],
-        type: userData[i][4],
-      };
-      break;
-    }
-  }
-  if (!currentUser) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "User not found" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  // Optional filters
-  var filterYear = e.parameter.year ? parseInt(e.parameter.year, 10) : null;
-  var filterMonth = e.parameter.month ? parseInt(e.parameter.month, 10) : null;
-  var filterDate = e.parameter.date ? parseInt(e.parameter.date, 10) : null;
-  var filterUserId = e.parameter.userId ? parseInt(e.parameter.userId, 10) : null;
-
-  var sheet = ss.getSheetByName("Meals");
-  if (!sheet) return ContentService.createTextOutput(JSON.stringify([]))
-                      .setMimeType(ContentService.MimeType.JSON);
-
-  var data = sheet.getDataRange().getValues();
-  var meals = [];
-
-  for (var i = 1; i < data.length; i++) {
-    var row = {
-      id: data[i][0],
-      userId: data[i][1],
-      year: data[i][2],
-      month: data[i][3],
-      date: data[i][4],
-      type: data[i][5],
-      amount: data[i][6]
-    };
-
-    // Skip rows that don't match rules
-    if (currentUser.type !== "admin" && row.userId != currentUser.id) continue;
-    if (currentUser.type === "admin" && filterUserId && row.userId != filterUserId) continue;
-    if (filterYear && row.year != filterYear) continue;
-    if (filterMonth && row.month != filterMonth) continue;
-    if (filterDate && row.date != filterDate) continue;
-
-    meals.push(row);
-  }
-
-  return ContentService.createTextOutput(JSON.stringify(meals))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function getCustomValues() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("CustomValues");
-  if (!sheet) return {};
   
-  var data = sheet.getDataRange().getValues();
-  var customs = {}; // ফরম্যাট: { "userId": { "headId": value } }
-
-  for (var i = 1; i < data.length; i++) {
-    var userId = String(data[i][0]);
-    var costHeadId = String(data[i][1]);
-    var amount = parseFloat(data[i][2]);
+  var meals = data.slice(1).filter(function(r) {
+    var rowUserId = r[1], year = r[2], month = r[3], date = r[4];
     
-    if (!customs[userId]) customs[userId] = {};
-    customs[userId][costHeadId] = amount;
-  }
-  return customs;
+    // Auth logic
+    if (currentUser.type !== "admin" && rowUserId != currentUser.id) return false;
+    if (currentUser.type === "admin" && fUserId && rowUserId != fUserId) return false;
+    
+    // Filter logic
+    if (fYear && year != fYear) return false;
+    if (fMonth && month != fMonth) return false;
+    if (fDate && date != fDate) return false;
+    
+    return true;
+  }).map(function(r) {
+    return { id: r[0], userId: r[1], year: r[2], month: r[3], date: r[4], type: r[5], amount: r[6] };
+  });
+
+  return jsonResponse(meals);
 }
 
-function addOrUpdateMealsBatch(e) {
-  var token = e.parameter.token;
-  if (!token) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "Missing token" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var email = verifyToken(token);
-  if (!email) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "Invalid or expired token" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var userSheet = ss.getSheetByName("Users");
-  var userData = userSheet.getDataRange().getValues();
-  var currentUser = null;
-  for (var i = 1; i < userData.length; i++) {
-    if (userData[i][2] === email) {
-      currentUser = {
-        id: userData[i][0],
-        name: userData[i][1],
-        type: userData[i][4],
-      };
-      break;
-    }
-  }
-  if (!currentUser) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "User not found" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  if (!e.parameter.records) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "Missing records" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var records;
-  try {
-    records = JSON.parse(e.parameter.records);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({ error: "Invalid JSON for records" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-
-  var sheet = ss.getSheetByName("Meals");
+/**
+ * ব্যাচ মিল আপডেট বা ইনসার্ট
+ */
+function addOrUpdateMealsBatch(e, currentUser) {
+  var records = JSON.parse(e.parameter.records || "[]");
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Meals");
   var data = sheet.getDataRange().getValues();
-  var updatedCount = 0;
-  var insertedCount = 0;
+  var updatedCount = 0, insertedCount = 0;
 
   records.forEach(function (rec) {
-    var year = parseInt(rec.year, 10);
-    var month = parseInt(rec.month, 10);
-    var date = parseInt(rec.date, 10);
-    var type = rec.type;
-    var amount = parseFloat(rec.amount);
-
-    if (!year || !month || !date || !type || isNaN(amount)) {
-      return; // Skip invalid record
-    }
-
-    // Determine which user this meal belongs to
-    var mealUserId = currentUser.id;
-    if (currentUser.type === "admin" && rec.userId) {
-      mealUserId = parseInt(rec.userId, 10);
-    }
-
-    // Check if the meal already exists
+    var mealUserId = (currentUser.type === "admin" && rec.userId) ? parseInt(rec.userId) : currentUser.id;
     var found = false;
+
     for (var i = 1; i < data.length; i++) {
-      if (
-        data[i][1] == mealUserId &&
-        data[i][2] == year &&
-        data[i][3] == month &&
-        data[i][4] == date &&
-        data[i][5] == type
-      ) {
-        // Update existing meal
-        sheet.getRange(i + 1, 7).setValue(amount);
+      if (data[i][1] == mealUserId && data[i][2] == rec.year && data[i][3] == rec.month && data[i][4] == rec.date && data[i][5] == rec.type) {
+        sheet.getRange(i + 1, 7).setValue(parseFloat(rec.amount));
         updatedCount++;
         found = true;
         break;
@@ -386,126 +184,74 @@ function addOrUpdateMealsBatch(e) {
     }
 
     if (!found) {
-      // Insert new meal
-      var newId = data.length + insertedCount; // avoid collision in same batch
-      sheet.appendRow([newId, mealUserId, year, month, date, type, amount]);
+      sheet.appendRow([data.length + insertedCount, mealUserId, rec.year, rec.month, rec.date, rec.type, parseFloat(rec.amount)]);
       insertedCount++;
     }
   });
 
-  return ContentService.createTextOutput(JSON.stringify({
-    success: true,
-    inserted: insertedCount,
-    updated: updatedCount
-  })).setMimeType(ContentService.MimeType.JSON);
+  return jsonResponse({ success: true, inserted: insertedCount, updated: updatedCount });
 }
 
+/**
+ * বাজার খরচ পাওয়া
+ */
 function getBazarCosts(e) {
-  // Authentication check
-  var token = e.parameter.token;
-  if (!token) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Missing token' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('BazarCost');
+  if (!sheet) return jsonResponse({ error: 'BazarCost sheet not found' });
   
-  var email = verifyToken(token);
-  if (!email) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Invalid or expired token' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  // Get user info for permission check (optional)
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var userSheet = ss.getSheetByName('Users');
-  var userData = userSheet.getDataRange().getValues();
-  var currentUser = null;
-  
-  for (var i = 1; i < userData.length; i++) {
-    if (userData[i][2] === email) {
-      currentUser = {
-        id: userData[i][0],
-        name: userData[i][1],
-        type: userData[i][4],
-      };
-      break;
-    }
-  }
-  
-  if (!currentUser) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'User not found' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  // Collect filter parameters (all optional)
-  var filters = {
-    id: e.parameter.id ? parseInt(e.parameter.id, 10) : null,
-    userId: e.parameter.userId ? parseInt(e.parameter.userId, 10) : null,
-    year: e.parameter.year ? parseInt(e.parameter.year, 10) : null,
-    month: e.parameter.month ? parseInt(e.parameter.month, 10) : null,
-    amount: e.parameter.amount ? parseFloat(e.parameter.amount) : null,
-    status: e.parameter.status || null  // String comparison
-  };
-  
-  // Get BazarCost sheet data
-  var sheet = ss.getSheetByName('BazarCost');
-  if (!sheet) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'BazarCost sheet not found' }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  
+  var f = e.parameter;
   var data = sheet.getDataRange().getValues();
-  var bazarCosts = [];
   
-  // Skip header row (index 0)
+  var results = data.slice(1).filter(function(r) {
+    if (f.id && r[0] != f.id) return false;
+    if (f.userId && r[1] != f.userId) return false;
+    if (f.year && r[2] != f.year) return false;
+    if (f.month && r[3] != f.month) return false;
+    if (f.status && r[5] !== f.status) return false;
+    return true;
+  }).map(function(r) {
+    return { id: r[0], userId: r[1], year: r[2], month: r[3], amount: r[4], status: r[5] };
+  });
+
+  return jsonResponse(results);
+}
+
+// --- 5. HELPERS ---
+
+function jsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function initCostHeadsSheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("CostHeads") || ss.insertSheet("CostHeads");
+  if (sheet.getLastRow() === 0) sheet.appendRow(["id", "name", "type", "createdAt", "updatedAt"]);
+  return sheet;
+}
+
+function addCostHead(e) {
+  if (!e.parameter.name || !e.parameter.type) return jsonResponse({ error: "Missing name or type" });
+  var sheet = initCostHeadsSheet();
+  var id = sheet.getLastRow(), now = new Date();
+  sheet.appendRow([id, e.parameter.name, e.parameter.type, now, now]);
+  return jsonResponse({ success: "Cost head added", id: id });
+}
+
+function getCostHeads() {
+  var data = initCostHeadsSheet().getDataRange().getValues();
+  return data.slice(1).map(function(r) {
+    return { id: r[0], name: r[1], amount: r[2], type: r[3], createdAt: r[4], updatedAt: r[5] };
+  });
+}
+
+function getCustomValues() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("CustomValues");
+  if (!sheet) return {};
+  var data = sheet.getDataRange().getValues(), customs = {};
   for (var i = 1; i < data.length; i++) {
-    var row = data[i];
-    
-    // Skip empty rows
-    if (!row[0] && !row[1] && !row[2] && !row[3] && !row[4] && !row[5]) {
-      continue;
-    }
-    
-    // Extract row values based on your column structure:
-    // ID, User ID, Year, Month, Amount, Status
-    var record = {
-      id: row[0],
-      userId: row[1],
-      year: row[2],
-      month: row[3],
-      amount: row[4],
-      status: row[5]
-    };
-    
-    // Apply flexible filtering
-    var shouldInclude = true;
-    
-    // Check each filter - only apply if filter is provided
-    if (filters.id !== null && record.id != filters.id) {
-      shouldInclude = false;
-    }
-    if (filters.userId !== null && record.userId != filters.userId) {
-      shouldInclude = false;
-    }
-    if (filters.year !== null && record.year != filters.year) {
-      shouldInclude = false;
-    }
-    if (filters.month !== null && record.month != filters.month) {
-      shouldInclude = false;
-    }
-    if (filters.amount !== null && record.amount != filters.amount) {
-      shouldInclude = false;
-    }
-    if (filters.status !== null && record.status !== filters.status) {
-      shouldInclude = false;
-    }
-    
-    // Add to results if all filters pass
-    if (shouldInclude) {
-      bazarCosts.push(record);
-    }
+    var uId = String(data[i][0]);
+    if (!customs[uId]) customs[uId] = {};
+    customs[uId][String(data[i][1])] = parseFloat(data[i][2]);
   }
-  
-  // Return JSON response
-  return ContentService.createTextOutput(JSON.stringify(bazarCosts))
-    .setMimeType(ContentService.MimeType.JSON);
+  return customs;
 }
