@@ -1,23 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import axios from "axios";
 
-interface User {
+export interface User {
   id: string;
   name: string;
   email: string;
   type: string;
 }
 
-interface CostHead {
+export interface CostHead {
   id: number;
   name: string;
   type: string;
   amount: number;
 }
 
-interface Meal {
+export interface Meal {
   id: number;
   userId: number;
   year: number;
@@ -27,7 +27,7 @@ interface Meal {
   amount: number;
 }
 
-interface BazarCost {
+export interface BazarCost {
   id: number;
   userId: number;
   year: number;
@@ -36,8 +36,7 @@ interface BazarCost {
   status: string;
 }
 
-// Amounts type definition
-type AmountsType = Record<string, Record<string | number, number>>;
+export type AmountsType = Record<string, Record<string | number, number>>;
 
 export default function MonthlyBillForm() {
   const [users, setUsers] = useState<User[]>([]);
@@ -63,30 +62,42 @@ export default function MonthlyBillForm() {
   // User-wise bazar amounts
   const [userBazarAmounts, setUserBazarAmounts] = useState<Record<string, number>>({});
 
-  // Initialize current month and year
+  // Memoized calculations
+  const years = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    const years = [];
+    for (let year = 2024; year <= currentYear; year++) {
+      years.push(year);
+    }
+    return years;
+  }, []);
+
+  const months = useMemo(() => {
+    const months = [];
+    for (let i = 1; i <= 12; i++) {
+      const date = new Date(selectedYear, i - 1, 1);
+      const monthName = date.toLocaleString('default', { month: 'long' });
+      months.push({ value: i, name: monthName });
+    }
+    return months;
+  }, [selectedYear]);
+
+  // Initialize current month and year - optimized
   useEffect(() => {
     const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth() + 1; // 1-12
-    
-    setSelectedYear(currentYear);
-    setSelectedMonth(currentMonth);
+    setSelectedYear(currentDate.getFullYear());
+    setSelectedMonth(currentDate.getMonth() + 1);
   }, []);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const userToken = localStorage.getItem("userToken");
-      setToken(userToken);
-    }
+    const userToken = localStorage.getItem("userToken");
+    setToken(userToken);
   }, []);
 
-  // Fetch bazar costs when year/month changes
-  useEffect(() => {
+  // Fetch bazar costs - optimized with useCallback
+  const fetchBazarCosts = useCallback(async () => {
     if (!token || !selectedYear || !selectedMonth) return;
-    fetchBazarCosts();
-  }, [token, selectedYear, selectedMonth]);
-
-  const fetchBazarCosts = async () => {
+    
     setBazarLoading(true);
     try {
       const params = {
@@ -99,10 +110,7 @@ export default function MonthlyBillForm() {
 
       const response = await axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { params });
       
-      console.log("BazarCost response:", response.data);
-      
-      // Check if response contains error
-      if (response.data && response.data.error) {
+      if (response.data?.error) {
         console.error("Error from GAS:", response.data.error);
         setBazarTotal(0);
         setBazarCosts([]);
@@ -113,32 +121,28 @@ export default function MonthlyBillForm() {
       const bazarData = Array.isArray(response.data) ? response.data : [];
       setBazarCosts(bazarData);
       
-      // Calculate total amount
-      const total = bazarData.reduce((sum: number, item: BazarCost) => {
-        return sum + (item.amount || 0);
-      }, 0);
-      
-      setBazarTotal(total);
-      
-      // Calculate user-wise bazar amounts
+      // Calculate totals in one pass
       const userAmounts: Record<string, number> = {};
+      let total = 0;
+      
       bazarData.forEach((item: BazarCost) => {
         const userId = String(item.userId);
-        userAmounts[userId] = (userAmounts[userId] || 0) + item.amount;
+        const amount = item.amount || 0;
+        
+        userAmounts[userId] = (userAmounts[userId] || 0) + amount;
+        total += amount;
       });
       
+      setBazarTotal(total);
       setUserBazarAmounts(userAmounts);
-      console.log("User bazar amounts:", userAmounts);
-      console.log("Total bazar amount calculated:", total);
       
     } catch (err: any) {
       console.error("Error fetching bazar costs:", err.response?.data || err.message);
       
-      // Check if error is due to invalid action
       if (err.response?.data?.error === "Invalid action") {
-        setError("getBazarCosts action not found in GAS script. Please add the function to your GAS script.");
+        setError("getBazarCosts action not found. Please add the function to your GAS script.");
       } else {
-        setError("Failed to load bazar costs. Please check if BazarCost sheet exists.");
+        setError("Failed to load bazar costs.");
       }
       
       setBazarTotal(0);
@@ -147,8 +151,13 @@ export default function MonthlyBillForm() {
     } finally {
       setBazarLoading(false);
     }
-  };
+  }, [token, selectedYear, selectedMonth]);
 
+  useEffect(() => {
+    fetchBazarCosts();
+  }, [fetchBazarCosts]);
+
+  // Initial data fetch - optimized
   useEffect(() => {
     if (!token) return;
 
@@ -157,40 +166,41 @@ export default function MonthlyBillForm() {
       setError("");
       try {
         const [usersRes, headsRes] = await Promise.all([
-          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { params: { action: "getUserList", token } }),
-          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { params: { action: "getCostHeads", token } }),
+          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
+            params: { action: "getUserList", token } 
+          }),
+          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
+            params: { action: "getCostHeads", token } 
+          }),
         ]);
 
-        // User list
         const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
-        setUsers(usersData);
-
-        // Cost heads data
         const headsData = headsRes.data?.costHeads || [];
         const customs = headsRes.data?.customValues || {};
 
+        setUsers(usersData);
         setCostHeads(headsData);
         setCustomValues(customs);
 
-        // Initialize input grid (default 0) - Use AmountsType
+        // Initialize amounts efficiently
         const initialAmounts: AmountsType = {};
+        const initialMealCosts: Record<string, number> = {};
+        
         usersData.forEach((u) => {
           initialAmounts[u.id] = {};
+          initialMealCosts[u.id] = 0;
+          
+          // Initialize cost heads
           headsData.forEach((c: CostHead) => {
             initialAmounts[u.id][c.id] = 0;
           });
-          // Meal cost initial value - 'meal' is a string key
+          
+          // Initialize meal and bazar
           initialAmounts[u.id]['meal'] = 0;
-          // Bazar amount initial value - 'bazar' is a string key
           initialAmounts[u.id]['bazar'] = 0;
         });
-        setAmounts(initialAmounts);
         
-        // Initial meal costs
-        const initialMealCosts: Record<string, number> = {};
-        usersData.forEach(u => {
-          initialMealCosts[u.id] = 0;
-        });
+        setAmounts(initialAmounts);
         setMealCosts(initialMealCosts);
         
       } catch (err: any) {
@@ -204,31 +214,27 @@ export default function MonthlyBillForm() {
     fetchData();
   }, [token]);
 
-  // Update amounts when userBazarAmounts changes
+  // Update amounts when userBazarAmounts changes - optimized
   useEffect(() => {
-    if (Object.keys(userBazarAmounts).length > 0) {
-      setAmounts(prev => {
-        const updated = { ...prev };
-        Object.keys(userBazarAmounts).forEach(userId => {
-          if (updated[userId]) {
-            updated[userId]['bazar'] = userBazarAmounts[userId];
-          }
-        });
-        return updated;
+    if (Object.keys(userBazarAmounts).length === 0) return;
+    
+    setAmounts(prev => {
+      const updated = { ...prev };
+      Object.entries(userBazarAmounts).forEach(([userId, amount]) => {
+        if (updated[userId]) {
+          updated[userId] = { ...updated[userId], bazar: amount };
+        }
       });
-    }
+      return updated;
+    });
   }, [userBazarAmounts]);
 
-  // Fetch meals data
-  const fetchMeals = async () => {
-    if (!token) return;
-    if (!selectedYear || !selectedMonth) {
+  // Fetch meals data - optimized
+  const fetchMeals = useCallback(async () => {
+    if (!token || !selectedYear || !selectedMonth) {
       alert("Please select year and month first");
       return;
     }
-    
-    // First refresh bazar total
-    await fetchBazarCosts();
     
     if (bazarTotal <= 0) {
       alert("No bazar costs found for selected month or total amount is zero!");
@@ -238,15 +244,67 @@ export default function MonthlyBillForm() {
     setMealLoading(true);
     try {
       const res = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
-        params: { action: "getMeals", token, year: selectedYear, month: selectedMonth },
+        params: { 
+          action: "getMeals", 
+          token, 
+          year: selectedYear, 
+          month: selectedMonth 
+        },
       });
       
       const mealsData = Array.isArray(res.data) ? res.data : [];
-      console.log("Fetched meals data:", mealsData);
       setMeals(mealsData);
       
       // Calculate meal costs
-      calculateMealCosts(mealsData);
+      if (mealsData.length === 0) {
+        alert("No meal data found for selected month!");
+        return;
+      }
+      
+      // Calculate in one efficient pass
+      const userMealTotals: Record<string, number> = {};
+      let totalMeals = 0;
+      
+      mealsData.forEach(meal => {
+        const amount = meal.amount || 0;
+        const userId = String(meal.userId);
+        
+        userMealTotals[userId] = (userMealTotals[userId] || 0) + amount;
+        totalMeals += amount;
+      });
+      
+      if (totalMeals === 0) {
+        alert("Total meals count is zero!");
+        return;
+      }
+      
+      const mealRate = bazarTotal / totalMeals;
+      const newMealCosts: Record<string, number> = {};
+      
+      // Update states in batch
+      setAmounts(prev => {
+        const updated = { ...prev };
+        users.forEach(user => {
+          const userTotalMeals = userMealTotals[user.id] || 0;
+          const userMealCost = parseFloat((userTotalMeals * mealRate).toFixed(2));
+          
+          newMealCosts[user.id] = userMealCost;
+          
+          if (updated[user.id]) {
+            updated[user.id] = { ...updated[user.id], meal: userMealCost };
+          }
+        });
+        return updated;
+      });
+      
+      setMealCosts(newMealCosts);
+      
+      // Show summary
+      alert(`Meal cost calculation completed!\n\n` +
+            `Total meals: ${totalMeals}\n` +
+            `Bazar total: ${bazarTotal.toFixed(2)} Tk\n` +
+            `Meal rate: ${mealRate.toFixed(2)} Tk\n` +
+            `Number of bazar records: ${bazarCosts.length}`);
       
     } catch (err) {
       setError("Failed to fetch meal data.");
@@ -254,95 +312,38 @@ export default function MonthlyBillForm() {
     } finally {
       setMealLoading(false);
     }
-  };
+  }, [token, selectedYear, selectedMonth, bazarTotal, bazarCosts.length, users]);
 
-  // Calculate meal costs
-  const calculateMealCosts = (mealsData: Meal[]) => {
-    if (mealsData.length === 0) {
-      alert("No meal data found for selected month!");
-      return;
-    }
-    
-    if (bazarTotal <= 0) {
-      alert("Bazar total is zero! Please add bazar costs first.");
-      return;
-    }
-    
-    // 1. Calculate total meals
-    const totalMeals = mealsData.reduce((sum, meal) => sum + meal.amount, 0);
-    console.log("Total meals:", totalMeals);
-    
-    if (totalMeals === 0) {
-      alert("Total meals count is zero!");
-      return;
-    }
-    
-    // 2. Calculate meal rate
-    const mealRate = bazarTotal / totalMeals;
-    console.log("Meal rate:", mealRate.toFixed(2), "Bazar total:", bazarTotal);
-    
-    // 3. Calculate each user's total meals
-    const userMealTotals: Record<string, number> = {};
-    mealsData.forEach(meal => {
-      const userId = String(meal.userId);
-      userMealTotals[userId] = (userMealTotals[userId] || 0) + meal.amount;
-    });
-    
-    console.log("User meal totals:", userMealTotals);
-    
-    // 4. Calculate each user's meal cost
-    const newMealCosts: Record<string, number> = {};
-    const newAmounts = { ...amounts };
-    
-    users.forEach(user => {
-      const userTotalMeals = userMealTotals[user.id] || 0;
-      const userMealCost = userTotalMeals * mealRate;
-      newMealCosts[user.id] = parseFloat(userMealCost.toFixed(2));
-      
-      // Update amounts state
-      if (newAmounts[user.id]) {
-        newAmounts[user.id]['meal'] = parseFloat(userMealCost.toFixed(2));
-      }
-    });
-    
-    setMealCosts(newMealCosts);
-    setAmounts(newAmounts);
-    
-    // Show summary
-    alert(`Meal cost calculation completed!\n\n` +
-          `Total meals: ${totalMeals}\n` +
-          `Bazar total: ${bazarTotal.toFixed(2)} Tk\n` +
-          `Meal rate: ${mealRate.toFixed(2)} Tk\n` +
-          `Number of bazar records: ${bazarCosts.length}`);
-  };
-
-  // Manual input handler
-  const handleChange = (userId: string, headId: number | string, value: string) => {
+  // Manual input handler - optimized
+  const handleChange = useCallback((userId: string, headId: number | string, value: string) => {
     const num = parseFloat(value) || 0;
-    setAmounts((prev) => ({
+    
+    setAmounts(prev => ({
       ...prev,
       [userId]: { ...prev[userId], [headId]: num },
     }));
     
-    // If it's meal cost column, update mealCosts state too
     if (headId === 'meal') {
       setMealCosts(prev => ({
         ...prev,
         [userId]: num
       }));
     }
-  };
+  }, []);
 
-  // Smart distribution logic
-  const distributeSmartly = (headId: number) => {
+  // Smart distribution logic - optimized
+  const distributeSmartly = useCallback((headId: number) => {
     const costHead = costHeads.find((c) => c.id === headId);
-    if (!costHead || costHead.amount === 0) return alert("This cost head has zero amount");
+    if (!costHead || costHead.amount === 0) {
+      alert("This cost head has zero amount");
+      return;
+    }
 
     let totalAmountToSplit = costHead.amount;
-    let usersWithoutCustom: User[] = [];
+    const usersWithoutCustom: User[] = [];
     const newHeadAmounts: Record<string, number> = {};
 
-    // 1. Deduct custom/fixed values first
+    // First pass: collect custom values
     users.forEach((u) => {
       const customVal = customValues[u.id]?.[String(headId)];
       if (customVal !== undefined) {
@@ -353,7 +354,7 @@ export default function MonthlyBillForm() {
       }
     });
 
-    // 2. Split remaining amount among others
+    // Second pass: distribute remaining
     if (usersWithoutCustom.length > 0) {
       const perUser = parseFloat((totalAmountToSplit / usersWithoutCustom.length).toFixed(2));
       usersWithoutCustom.forEach((u) => {
@@ -361,67 +362,81 @@ export default function MonthlyBillForm() {
       });
     }
 
-    // 3. Update state
-    setAmounts((prev) => {
+    // Update state in one batch
+    setAmounts(prev => {
       const updated = { ...prev };
-      users.forEach((u) => {
-        if (!updated[u.id]) updated[u.id] = {};
-        updated[u.id][headId] = newHeadAmounts[u.id] || 0;
+      Object.entries(newHeadAmounts).forEach(([userId, amount]) => {
+        if (updated[userId]) {
+          updated[userId] = { ...updated[userId], [headId]: amount };
+        }
       });
       return updated;
     });
-  };
+  }, [costHeads, customValues, users]);
 
-  // Calculation functions - UPDATED WITH BAZAR DEDUCTION
-  const userTotal = (userId: string) => {
+  // Memoized calculation functions
+  const userTotal = useCallback((userId: string) => {
+    const userAmounts = amounts[userId];
+    if (!userAmounts) return 0;
+    
     let total = 0;
     
-    // Add cost heads
-    costHeads.forEach(c => {
-      total += amounts[userId]?.[c.id] || 0;
-    });
+    // Sum cost heads
+    for (let i = 0; i < costHeads.length; i++) {
+      total += userAmounts[costHeads[i].id] || 0;
+    }
     
-    // Add meal cost
-    total += amounts[userId]?.['meal'] || 0;
-    
-    // SUBTRACT bazar amount (this is money the user has already paid)
-    total -= amounts[userId]?.['bazar'] || 0;
+    // Add meal cost, subtract bazar
+    total += (userAmounts['meal'] || 0) - (userAmounts['bazar'] || 0);
     
     return total;
-  };
+  }, [amounts, costHeads]);
 
-  const headTotal = (headId: number) => 
-    users.reduce((sum, u) => sum + (amounts[u.id]?.[headId] || 0), 0);
-
-  const mealColumnTotal = () => 
-    users.reduce((sum, u) => sum + (amounts[u.id]?.['meal'] || 0), 0);
-
-  const bazarColumnTotal = () => 
-    users.reduce((sum, u) => sum + (amounts[u.id]?.['bazar'] || 0), 0);
-
-  const grandTotal = () => 
-    users.reduce((sum, u) => sum + userTotal(u.id), 0);
-
-  // Generate years array from 2024 to current year
-  const generateYears = () => {
-    const currentYear = new Date().getFullYear();
-    const years = [];
-    for (let year = 2024; year <= currentYear; year++) {
-      years.push(year);
+  const headTotal = useCallback((headId: number) => {
+    let sum = 0;
+    for (let i = 0; i < users.length; i++) {
+      sum += amounts[users[i].id]?.[headId] || 0;
     }
-    return years;
-  };
+    return sum;
+  }, [amounts, users]);
 
-  // Generate months array 1-12 with names
-  const generateMonths = () => {
-    const months = [];
-    for (let i = 1; i <= 12; i++) {
-      const date = new Date(selectedYear, i - 1, 1);
-      const monthName = date.toLocaleString('default', { month: 'long' });
-      months.push({ value: i, name: monthName });
+  const mealColumnTotal = useCallback(() => {
+    let sum = 0;
+    for (let i = 0; i < users.length; i++) {
+      sum += amounts[users[i].id]?.['meal'] || 0;
     }
-    return months;
-  };
+    return sum;
+  }, [amounts, users]);
+
+  const bazarColumnTotal = useCallback(() => {
+    let sum = 0;
+    for (let i = 0; i < users.length; i++) {
+      sum += amounts[users[i].id]?.['bazar'] || 0;
+    }
+    return sum;
+  }, [amounts, users]);
+
+  const grandTotal = useCallback(() => {
+    let sum = 0;
+    for (let i = 0; i < users.length; i++) {
+      sum += userTotal(users[i].id);
+    }
+    return sum;
+  }, [users, userTotal]);
+
+  // Memoized meal count per user
+  const userMealCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    if (meals.length === 0) return counts;
+    
+    for (let i = 0; i < meals.length; i++) {
+      const meal = meals[i];
+      const userId = String(meal.userId);
+      counts[userId] = (counts[userId] || 0) + (meal.amount || 0);
+    }
+    
+    return counts;
+  }, [meals]);
 
   // Refresh bazar costs button
   const handleRefreshBazar = () => {
@@ -456,7 +471,7 @@ export default function MonthlyBillForm() {
               onChange={(e) => setSelectedYear(Number(e.target.value))}
             >
               <option value="0">Select Year</option>
-              {generateYears().map(year => (
+              {years.map(year => (
                 <option key={year} value={year}>{year}</option>
               ))}
             </select>
@@ -470,7 +485,7 @@ export default function MonthlyBillForm() {
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
             >
               <option value="0">Select Month</option>
-              {generateMonths().map(month => (
+              {months.map(month => (
                 <option key={month.value} value={month.value}>{month.name}</option>
               ))}
             </select>
@@ -556,11 +571,9 @@ export default function MonthlyBillForm() {
               <tr key={u.id} className="hover:bg-purple-50 transition-colors border-b">
                 <td className="px-4 py-2 font-medium text-gray-700 bg-gray-50 border">
                   <div>{u.name}</div>
-                  {meals.length > 0 && (
+                  {meals.length > 0 && userMealCounts[u.id] && (
                     <div className="text-xs text-gray-500">
-                      {meals.filter(m => 
-                        Number(m.userId) === Number(u.id)
-                      ).reduce((sum, meal) => sum + meal.amount, 0).toFixed(1)} meals
+                      {userMealCounts[u.id].toFixed(1)} meals
                     </div>
                   )}
                 </td>
@@ -571,8 +584,7 @@ export default function MonthlyBillForm() {
                       step="0.01"
                       className="w-full px-2 py-1 border border-gray-300 rounded text-right 
                                 focus:outline-none focus:ring-2 focus:ring-purple-400 
-                                text-gray-900 
-                                bg-white"
+                                text-gray-900 bg-white"
                       value={amounts[u.id]?.[c.id] ?? 0}
                       onChange={(e) => handleChange(u.id, c.id, e.target.value)}
                     />
@@ -584,8 +596,7 @@ export default function MonthlyBillForm() {
                     step="0.01"
                     className="w-full px-2 py-1 border border-green-300 rounded text-right 
                               focus:outline-none focus:ring-2 focus:ring-green-400 
-                              text-gray-900 font-bold
-                              bg-green-50"
+                              text-gray-900 font-bold bg-green-50"
                     value={amounts[u.id]?.['meal'] ?? 0}
                     onChange={(e) => handleChange(u.id, 'meal', e.target.value)}
                   />
