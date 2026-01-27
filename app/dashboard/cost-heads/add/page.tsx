@@ -36,7 +36,7 @@ export default function AddCostHeadPage() {
             name: formData.name,
             type: formData.type,
           },
-        }
+        },
       );
 
       if (response.data?.success) {
@@ -47,9 +47,7 @@ export default function AddCostHeadPage() {
       }
     } catch (err: any) {
       setError(
-        err.response?.data?.error ||
-          err.message ||
-          "Failed to connect to API."
+        err.response?.data?.error || err.message || "Failed to connect to API.",
       );
     } finally {
       setLoading(false);
@@ -58,9 +56,7 @@ export default function AddCostHeadPage() {
 
   return (
     <div className="max-w-xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">
-        Add Cost Head
-      </h1>
+      <h1 className="text-2xl font-bold mb-6">Add Cost Head</h1>
 
       {/* Error Message */}
       {error && (
@@ -85,9 +81,7 @@ export default function AddCostHeadPage() {
           <input
             type="text"
             value={formData.name}
-            onChange={(e) =>
-              setFormData({ ...formData, name: e.target.value })
-            }
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
             className="w-full border rounded px-3 py-2"
             placeholder="e.g. Travel Expense"
             required
@@ -101,9 +95,7 @@ export default function AddCostHeadPage() {
           </label>
           <select
             value={formData.type}
-            onChange={(e) =>
-              setFormData({ ...formData, type: e.target.value })
-            }
+            onChange={(e) => setFormData({ ...formData, type: e.target.value })}
             className="w-full border rounded px-3 py-2"
             required
           >

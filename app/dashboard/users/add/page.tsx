@@ -18,7 +18,9 @@ export default function AddUserPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
+  ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -45,7 +47,14 @@ export default function AddUserPage() {
 
       if (res.data?.success) {
         setSuccess(res.data.success);
-        setForm({ id: "", name: "", email: "", password: "", type: "", updatedBy: "" });
+        setForm({
+          id: "",
+          name: "",
+          email: "",
+          password: "",
+          type: "",
+          updatedBy: "",
+        });
       } else {
         setError(res.data?.error || "Failed to add user.");
       }

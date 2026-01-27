@@ -21,7 +21,7 @@ export default function LoginPage() {
       const response = await axios.post(
         process.env.NEXT_PUBLIC_GAS_URL!,
         null, // POST Body empty because we use query params
-        { params: { action: "login", email, password } }
+        { params: { action: "login", email, password } },
       );
 
       const data = response.data;
@@ -29,7 +29,7 @@ export default function LoginPage() {
       if (data.token) {
         // ১. টোকেন সেভ করা
         localStorage.setItem("userToken", data.token);
-        
+
         // ২. ইউজারের অতিরিক্ত তথ্য সেভ করা (যা আমরা স্ক্রিপ্টে অ্যাড করেছি)
         localStorage.setItem("userInfo", JSON.stringify(data.user));
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
         <h1 className="text-3xl font-extrabold mb-6 text-center text-blue-600">
           Sign In
         </h1>
-        
+
         {error && (
           <div className="bg-red-100 text-red-600 p-3 rounded mb-4 text-sm border border-red-200">
             {error}
@@ -64,7 +64,9 @@ export default function LoginPage() {
         )}
 
         <div className="mb-4">
-          <label className="block mb-1 text-sm font-semibold text-gray-700">Email Address</label>
+          <label className="block mb-1 text-sm font-semibold text-gray-700">
+            Email Address
+          </label>
           <input
             type="email"
             placeholder="name@company.com"
@@ -76,7 +78,9 @@ export default function LoginPage() {
         </div>
 
         <div className="mb-6">
-          <label className="block mb-1 text-sm font-semibold text-gray-700">Password</label>
+          <label className="block mb-1 text-sm font-semibold text-gray-700">
+            Password
+          </label>
           <input
             type="password"
             placeholder="••••••••"
@@ -91,7 +95,9 @@ export default function LoginPage() {
           type="submit"
           disabled={loading}
           className={`w-full p-2.5 rounded text-white font-bold transition-colors ${
-            loading ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 shadow-md"
+            loading
+              ? "bg-blue-300 cursor-not-allowed"
+              : "bg-blue-600 hover:bg-blue-700 shadow-md"
           }`}
         >
           {loading ? "Authenticating..." : "Login"}

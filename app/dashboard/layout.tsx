@@ -63,7 +63,7 @@ export default function DashboardLayout({ children }: Props) {
       label: "Add Meal",
       icon: "🍲",
       path: "/dashboard/meal/add", // সবার জন্য উন্মুক্ত
-    }
+    },
   ];
 
   useEffect(() => {
@@ -78,10 +78,10 @@ export default function DashboardLayout({ children }: Props) {
     const userData = JSON.parse(info);
     setUserRole(userData.type);
 
-    // ২. অ্যাক্সেস কন্ট্রোল লজিক: 
+    // ২. অ্যাক্সেস কন্ট্রোল লজিক:
     // যদি সাধারণ ইউজার এডমিন ইউআরএল এ ঢোকার চেষ্টা করে, ড্যাশবোর্ডে পাঠিয়ে দাও
-    const currentMenu = menus.find(m => 
-      m.path === pathname || m.subMenu?.some(s => s.path === pathname)
+    const currentMenu = menus.find(
+      (m) => m.path === pathname || m.subMenu?.some((s) => s.path === pathname),
     );
 
     if (userData.type !== "admin" && currentMenu?.isAdminOnly) {
@@ -93,7 +93,7 @@ export default function DashboardLayout({ children }: Props) {
     menus.forEach((menu) => {
       if (menu.subMenu) {
         newOpenMenus[menu.label] = menu.subMenu.some((sub) =>
-          pathname?.startsWith(sub.path)
+          pathname?.startsWith(sub.path),
         );
       }
     });
@@ -113,7 +113,7 @@ export default function DashboardLayout({ children }: Props) {
     }`;
 
   // ৩. সাইডবার ফিল্টারিং লজিক
-  const filteredMenus = menus.filter(menu => {
+  const filteredMenus = menus.filter((menu) => {
     if (menu.isAdminOnly && userRole !== "admin") return false;
     return true;
   });
@@ -142,7 +142,9 @@ export default function DashboardLayout({ children }: Props) {
                     <span className="flex items-center gap-2">
                       {menu.icon} {menu.label}
                     </span>
-                    <span className="text-xs">{openMenus[menu.label] ? "▲" : "▼"}</span>
+                    <span className="text-xs">
+                      {openMenus[menu.label] ? "▲" : "▼"}
+                    </span>
                   </button>
 
                   {openMenus[menu.label] && (
@@ -187,9 +189,7 @@ export default function DashboardLayout({ children }: Props) {
 
       {/* Main content */}
       <main className="flex-1 p-8 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-50 overflow-y-auto">
-        <div className="max-w-6xl mx-auto">
-          {children}
-        </div>
+        <div className="max-w-6xl mx-auto">{children}</div>
       </main>
     </div>
   );

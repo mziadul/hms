@@ -40,7 +40,7 @@ export default function CostHeadsPage() {
         // যদি রেসপন্স অবজেক্ট হয় এবং তার ভেতর costHeads অ্যারে থাকে
         if (data && Array.isArray(data.costHeads)) {
           setCostHeads(data.costHeads);
-        } 
+        }
         // যদি সরাসরি অ্যারে আসে (পুরানো ফরম্যাট ব্যাকআপ হিসেবে)
         else if (Array.isArray(data)) {
           setCostHeads(data);
@@ -48,8 +48,7 @@ export default function CostHeadsPage() {
         // GAS রিটার্ন করা এরর চেক
         else if (data?.error) {
           setError(data.error);
-        }
-        else {
+        } else {
           setError("Unexpected server response format.");
         }
       })
@@ -99,12 +98,19 @@ export default function CostHeadsPage() {
 
             <tbody>
               {costHeads.map((c) => (
-                <tr key={c.id} className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                <tr
+                  key={c.id}
+                  className="hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                >
                   <td className="border px-4 py-2 text-center">{c.id}</td>
                   <td className="border px-4 py-2 font-medium">{c.name}</td>
-                  <td className="border px-4 py-2 text-right">{c.amount.toLocaleString()}</td>
+                  <td className="border px-4 py-2 text-right">
+                    {c.amount.toLocaleString()}
+                  </td>
                   <td className="border px-4 py-2 text-center">
-                    <span className={`px-2 py-1 rounded-full text-xs ${c.type === 'Prepaid' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs ${c.type === "Prepaid" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}
+                    >
                       {c.type}
                     </span>
                   </td>

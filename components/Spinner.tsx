@@ -5,7 +5,10 @@ interface SpinnerProps {
   message?: string;
 }
 
-export default function Spinner({ isLoading, message = "Loading..." }: SpinnerProps) {
+export default function Spinner({
+  isLoading,
+  message = "Loading...",
+}: SpinnerProps) {
   if (!isLoading) return null;
 
   return (

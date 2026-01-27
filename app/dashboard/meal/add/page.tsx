@@ -10,28 +10,34 @@ export default function MealSheet() {
   const [editedMeals, setEditedMeals] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [saveStatus, setSaveStatus] = useState<{ [key: string]: "saving" | "saved" | "error" }>({});
+  const [saveStatus, setSaveStatus] = useState<{
+    [key: string]: "saving" | "saved" | "error";
+  }>({});
   const [activeCell, setActiveCell] = useState<string | null>(null);
 
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(
+    new Date().getFullYear(),
+  );
+  const [selectedMonth, setSelectedMonth] = useState<number>(
+    new Date().getMonth() + 1,
+  );
 
-  const token = typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
 
   // Dynamic years array: 2024 থেকে current year পর্যন্ত
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
-    return Array.from(
-      { length: currentYear - 2023 }, 
-      (_, i) => 2024 + i
-    );
+    return Array.from({ length: currentYear - 2023 }, (_, i) => 2024 + i);
   }, []);
 
   // Months array with names
   const months = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => ({
       value: i + 1,
-      name: new Date(selectedYear, i, 1).toLocaleString('default', { month: 'long' })
+      name: new Date(selectedYear, i, 1).toLocaleString("default", {
+        month: "long",
+      }),
     }));
   }, [selectedYear]);
 
@@ -49,12 +55,17 @@ export default function MealSheet() {
       setLoading(true);
       try {
         const [usersRes, mealsRes] = await Promise.all([
-          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, { 
-            params: { action: "getUsers", token } 
+          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, {
+            params: { action: "getUsers", token },
           }),
           axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
-            params: { action: "getMeals", token, year: selectedYear, month: selectedMonth },
-          })
+            params: {
+              action: "getMeals",
+              token,
+              year: selectedYear,
+              month: selectedMonth,
+            },
+          }),
         ]);
 
         const usersData = Array.isArray(usersRes.data) ? usersRes.data : [];
@@ -62,7 +73,6 @@ export default function MealSheet() {
 
         setUsers(usersData);
         setMeals(mealsData);
-
       } catch (err) {
         console.error("Initialization error:", err);
         setError("ডেটা লোড করতে সমস্যা হয়েছে।");
@@ -82,7 +92,12 @@ export default function MealSheet() {
     setEditedMeals({});
     try {
       const res = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
-        params: { action: "getMeals", token, year: selectedYear, month: selectedMonth },
+        params: {
+          action: "getMeals",
+          token,
+          year: selectedYear,
+          month: selectedMonth,
+        },
       });
       const mealsData = Array.isArray(res.data) ? res.data : [];
       setMeals(mealsData);
@@ -109,179 +124,189 @@ export default function MealSheet() {
         debouncedSaveTrigger.userId,
         debouncedSaveTrigger.day,
         debouncedSaveTrigger.mealType,
-        debouncedSaveTrigger.value
+        debouncedSaveTrigger.value,
       );
     }
   }, [debouncedSaveTrigger, token]);
 
   // Save meal to API
-  const saveMealToAPI = useCallback(async (
-    userId: number, 
-    day: number, 
-    mealType: string, 
-    amount: string
-  ) => {
-    if (!token) {
-      setError("Please login first");
-      return false;
-    }
-
-    if (!amount || parseFloat(amount) === 0) {
-      const key = `${userId}-${day}-${mealType.toLowerCase()}`;
-      setSaveStatus(prev => ({ ...prev, [key]: "saved" }));
-      return true;
-    }
-
-    const key = `${userId}-${day}-${mealType.toLowerCase()}`;
-    setSaveStatus(prev => ({ ...prev, [key]: "saving" }));
-
-    try {
-      const record = {
-        userId: userId,
-        year: selectedYear,
-        month: selectedMonth,
-        date: day,
-        type: mealType.toUpperCase(),
-        amount: parseFloat(amount)
-      };
-
-      const response = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
-        params: {
-          action: "updateMeals",
-          token: token,
-          records: JSON.stringify([record])
-        }
-      });
-
-      if (response.data.success) {
-        setSaveStatus(prev => ({ ...prev, [key]: "saved" }));
-        
-        // Update local state
-        setMeals(prev => {
-          const existingIndex = prev.findIndex(m => 
-            m.userId === userId && 
-            m.year === selectedYear && 
-            m.month === selectedMonth && 
-            m.date === day && 
-            m.type === mealType.toUpperCase()
-          );
-          
-          if (existingIndex >= 0) {
-            const updated = [...prev];
-            updated[existingIndex] = { 
-              ...updated[existingIndex], 
-              amount: parseFloat(amount) 
-            };
-            return updated;
-          } else {
-            return [...prev, {
-              id: prev.length + 1,
-              userId,
-              year: selectedYear,
-              month: selectedMonth,
-              date: day,
-              type: mealType.toUpperCase(),
-              amount: parseFloat(amount)
-            }];
-          }
-        });
-        
-        return true;
-      } else {
-        setSaveStatus(prev => ({ ...prev, [key]: "error" }));
-        setError(`Save failed: ${response.data.error || 'Unknown error'}`);
+  const saveMealToAPI = useCallback(
+    async (userId: number, day: number, mealType: string, amount: string) => {
+      if (!token) {
+        setError("Please login first");
         return false;
       }
-    } catch (err: any) {
-      setSaveStatus(prev => ({ ...prev, [key]: "error" }));
-      setError(`Save failed: ${err.message}`);
-      return false;
-    }
-  }, [token, selectedYear, selectedMonth]);
+
+      if (!amount || parseFloat(amount) === 0) {
+        const key = `${userId}-${day}-${mealType.toLowerCase()}`;
+        setSaveStatus((prev) => ({ ...prev, [key]: "saved" }));
+        return true;
+      }
+
+      const key = `${userId}-${day}-${mealType.toLowerCase()}`;
+      setSaveStatus((prev) => ({ ...prev, [key]: "saving" }));
+
+      try {
+        const record = {
+          userId: userId,
+          year: selectedYear,
+          month: selectedMonth,
+          date: day,
+          type: mealType.toUpperCase(),
+          amount: parseFloat(amount),
+        };
+
+        const response = await axios.post(
+          process.env.NEXT_PUBLIC_GAS_URL!,
+          null,
+          {
+            params: {
+              action: "updateMeals",
+              token: token,
+              records: JSON.stringify([record]),
+            },
+          },
+        );
+
+        if (response.data.success) {
+          setSaveStatus((prev) => ({ ...prev, [key]: "saved" }));
+
+          // Update local state
+          setMeals((prev) => {
+            const existingIndex = prev.findIndex(
+              (m) =>
+                m.userId === userId &&
+                m.year === selectedYear &&
+                m.month === selectedMonth &&
+                m.date === day &&
+                m.type === mealType.toUpperCase(),
+            );
+
+            if (existingIndex >= 0) {
+              const updated = [...prev];
+              updated[existingIndex] = {
+                ...updated[existingIndex],
+                amount: parseFloat(amount),
+              };
+              return updated;
+            } else {
+              return [
+                ...prev,
+                {
+                  id: prev.length + 1,
+                  userId,
+                  year: selectedYear,
+                  month: selectedMonth,
+                  date: day,
+                  type: mealType.toUpperCase(),
+                  amount: parseFloat(amount),
+                },
+              ];
+            }
+          });
+
+          return true;
+        } else {
+          setSaveStatus((prev) => ({ ...prev, [key]: "error" }));
+          setError(`Save failed: ${response.data.error || "Unknown error"}`);
+          return false;
+        }
+      } catch (err: any) {
+        setSaveStatus((prev) => ({ ...prev, [key]: "error" }));
+        setError(`Save failed: ${err.message}`);
+        return false;
+      }
+    },
+    [token, selectedYear, selectedMonth],
+  );
 
   // Handle input change
   const handleInputChange = (
-    userId: number, 
-    day: number, 
-    mealType: string, 
-    value: string
+    userId: number,
+    day: number,
+    mealType: string,
+    value: string,
   ) => {
     const key = `${userId}-${day}-${mealType.toLowerCase()}`;
-    
-    setEditedMeals(prev => ({ ...prev, [key]: value }));
+
+    setEditedMeals((prev) => ({ ...prev, [key]: value }));
     setActiveCell(key);
-    
+
     setSaveTrigger({
       userId,
       day,
       mealType,
-      value
+      value,
     });
   };
 
   // Handle onBlur
   const handleInputBlur = (
-    userId: number, 
-    day: number, 
-    mealType: string, 
-    value: string
+    userId: number,
+    day: number,
+    mealType: string,
+    value: string,
   ) => {
     const key = `${userId}-${day}-${mealType.toLowerCase()}`;
     setActiveCell(null);
-    
+
     if (!value || parseFloat(value) === 0) {
       return;
     }
-    
+
     setSaveTrigger({
       userId,
       day,
       mealType,
-      value
+      value,
     });
   };
 
   // Helper function to get cell value
-  const getCellValue = (userId: number, day: number, mealType: string): string => {
+  const getCellValue = (
+    userId: number,
+    day: number,
+    mealType: string,
+  ): string => {
     const key = `${userId}-${day}-${mealType.toLowerCase()}`;
-    
+
     if (editedMeals[key] !== undefined) {
       return editedMeals[key];
     }
-    
-    const meal = meals.find(m => {
-      const userIdMatch = 
+
+    const meal = meals.find((m) => {
+      const userIdMatch =
         String(m.userId).trim() === String(userId).trim() ||
         Number(m.userId) === Number(userId);
-      
-      const dateMatch = 
+
+      const dateMatch =
         String(m.date).trim() === String(day).trim() ||
         Number(m.date) === Number(day);
-      
-      const monthMatch = 
+
+      const monthMatch =
         String(m.month).trim() === String(selectedMonth).trim() ||
         Number(m.month) === Number(selectedMonth);
-      
+
       const mealTypeLower = mealType.toLowerCase();
       const mTypeLower = String(m.type).toLowerCase();
-      
+
       let typeMatch = false;
-      
-      if (mealTypeLower === 'breakfast' || mealTypeLower === 'b') {
-        typeMatch = mTypeLower === 'b' || mTypeLower === 'breakfast';
-      } else if (mealTypeLower === 'lunch' || mealTypeLower === 'l') {
-        typeMatch = mTypeLower === 'l' || mTypeLower === 'lunch';
-      } else if (mealTypeLower === 'dinner' || mealTypeLower === 'd') {
-        typeMatch = mTypeLower === 'd' || mTypeLower === 'dinner';
+
+      if (mealTypeLower === "breakfast" || mealTypeLower === "b") {
+        typeMatch = mTypeLower === "b" || mTypeLower === "breakfast";
+      } else if (mealTypeLower === "lunch" || mealTypeLower === "l") {
+        typeMatch = mTypeLower === "l" || mTypeLower === "lunch";
+      } else if (mealTypeLower === "dinner" || mealTypeLower === "d") {
+        typeMatch = mTypeLower === "d" || mTypeLower === "dinner";
       }
-      
+
       return userIdMatch && dateMatch && monthMatch && typeMatch;
     });
-    
+
     if (meal && meal.amount !== undefined && meal.amount !== null) {
       return String(meal.amount);
     }
-    
+
     return "";
   };
 
@@ -292,34 +317,36 @@ export default function MealSheet() {
       <div className="flex gap-4 mb-6 items-end border-b pb-4">
         <div>
           <label className="block text-xs font-bold mb-1">Year</label>
-          <select 
-            className="border p-2 rounded" 
-            value={selectedYear} 
-            onChange={e => setSelectedYear(Number(e.target.value))}
+          <select
+            className="border p-2 rounded"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
             <option value="0">Select Year</option>
-            {years.map(year => 
-              <option key={year} value={year}>{year}</option>
-            )}
+            {years.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
           </select>
         </div>
         <div>
           <label className="block text-xs font-bold mb-1">Month</label>
-          <select 
-            className="border p-2 rounded" 
-            value={selectedMonth} 
-            onChange={e => setSelectedMonth(Number(e.target.value))}
+          <select
+            className="border p-2 rounded"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(Number(e.target.value))}
           >
             <option value="0">Select Month</option>
-            {months.map(month => (
+            {months.map((month) => (
               <option key={month.value} value={month.value}>
                 {month.name}
               </option>
             ))}
           </select>
         </div>
-        <button 
-          onClick={fetchMeals} 
+        <button
+          onClick={fetchMeals}
           className="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-md"
           disabled={loading}
         >
@@ -344,9 +371,7 @@ export default function MealSheet() {
           </div>
         </div>
         {activeCell && (
-          <div className="text-blue-600">
-            ⚡ Editing cell: {activeCell}
-          </div>
+          <div className="text-blue-600">⚡ Editing cell: {activeCell}</div>
         )}
         {error && <div className="text-red-600">{error}</div>}
       </div>
@@ -357,10 +382,10 @@ export default function MealSheet() {
           <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10">
             <tr>
               <th className="border p-2 min-w-[80px]">Date</th>
-              {users.map(user => (
-                <th 
-                  key={user.id} 
-                  className="border p-2 min-w-[150px] bg-blue-50 dark:bg-blue-900/20 text-black dark:text-white" 
+              {users.map((user) => (
+                <th
+                  key={user.id}
+                  className="border p-2 min-w-[150px] bg-blue-50 dark:bg-blue-900/20 text-black dark:text-white"
                   colSpan={3}
                 >
                   {user.name}
@@ -369,7 +394,7 @@ export default function MealSheet() {
             </tr>
             <tr className="bg-gray-50 dark:bg-gray-800 text-[10px] font-bold">
               <th className="border"></th>
-              {users.map(user => (
+              {users.map((user) => (
                 <React.Fragment key={`sub-${user.id}`}>
                   <th className="border p-1 text-blue-600">B</th>
                   <th className="border p-1 text-green-600">L</th>
@@ -379,52 +404,67 @@ export default function MealSheet() {
             </tr>
           </thead>
           <tbody>
-            {daysInMonth.map(day => (
-              <tr key={day} className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b">
+            {daysInMonth.map((day) => (
+              <tr
+                key={day}
+                className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b"
+              >
                 {/* তারিখের কলাম */}
                 <td className="border p-2 font-bold bg-gray-50 dark:bg-gray-800 text-black dark:text-white">
-                  {day < 10 ? `0${day}` : day}-{selectedMonth < 10 ? `0${selectedMonth}` : selectedMonth}
+                  {day < 10 ? `0${day}` : day}-
+                  {selectedMonth < 10 ? `0${selectedMonth}` : selectedMonth}
                 </td>
 
                 {/* প্রতি ইউজারের জন্য ৩টি সেল (B, L, D) */}
-                {users.map(user => {
+                {users.map((user) => {
                   const mealTypes = [
                     { key: "b", label: "B" },
                     { key: "l", label: "L" },
-                    { key: "d", label: "D" }
+                    { key: "d", label: "D" },
                   ];
-                  
+
                   return mealTypes.map(({ key, label }) => {
                     const value = getCellValue(user.id, day, key);
                     const cellKey = `${user.id}-${day}-${key}`;
                     const status = saveStatus[cellKey];
                     const isActive = activeCell === cellKey;
-                    
+
                     return (
-                      <td 
-                        key={cellKey} 
-                        className="border p-0 w-12 relative"
-                      >
+                      <td key={cellKey} className="border p-0 w-12 relative">
                         <div className="relative">
                           <input
                             type="number"
                             step="0.5"
                             min="0"
                             className={`w-full h-10 text-center bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/30 outline-none ${
-                              value ? "text-black dark:text-white font-medium" : "text-gray-400"
-                            } ${isActive ? 'ring-2 ring-blue-500' : ''}`}
+                              value
+                                ? "text-black dark:text-white font-medium"
+                                : "text-gray-400"
+                            } ${isActive ? "ring-2 ring-blue-500" : ""}`}
                             value={value}
-                            onChange={(e) => handleInputChange(user.id, day, key, e.target.value)}
-                            onBlur={(e) => handleInputBlur(user.id, day, key, e.target.value)}
+                            onChange={(e) =>
+                              handleInputChange(
+                                user.id,
+                                day,
+                                key,
+                                e.target.value,
+                              )
+                            }
+                            onBlur={(e) =>
+                              handleInputBlur(user.id, day, key, e.target.value)
+                            }
                             onFocus={(e) => {
                               e.target.select();
                               setActiveCell(cellKey);
                             }}
                           />
-                          
+
                           {/* Status indicator */}
                           {status && (
-                            <div className="absolute top-1 right-1" title={status}>
+                            <div
+                              className="absolute top-1 right-1"
+                              title={status}
+                            >
                               {status === "saving" && (
                                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                               )}
