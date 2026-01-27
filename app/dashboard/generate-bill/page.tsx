@@ -239,6 +239,26 @@ export default function MonthlyBillForm() {
     });
   }, [userBazarAmounts]);
 
+  // Clear bazar amounts in the state when month or year changes
+  useEffect(() => {
+    setAmounts((prev) => {
+      const resetBazar = { ...prev };
+      Object.keys(resetBazar).forEach((userId) => {
+        resetBazar[userId] = {
+          ...resetBazar[userId],
+          bazar: 0,
+        };
+      });
+      return resetBazar;
+    });
+
+    // Also clear bazar-related totals
+    setBazarTotal(0);
+    setBazarCosts([]);
+    setUserBazarAmounts({});
+    setError("");
+  }, [selectedYear, selectedMonth]);
+
   // Fetch meals data - optimized
   const fetchMeals = useCallback(async () => {
     if (!token || !selectedYear || !selectedMonth) {
