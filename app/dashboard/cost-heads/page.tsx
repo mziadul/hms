@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "@/utils/api";
 
 interface CostHead {
   id: string;
@@ -26,7 +26,7 @@ export default function CostHeadsPage() {
       return;
     }
 
-    axios
+    api
       .get(process.env.NEXT_PUBLIC_GAS_URL!, {
         params: {
           action: "getCostHeads",
@@ -53,7 +53,7 @@ export default function CostHeadsPage() {
         }
       })
       .catch((err) => {
-        if (axios.isAxiosError(err)) {
+        if (api.isApiError(err)) {
           setError(err.response?.data?.error || err.message);
         } else {
           setError("Something went wrong while fetching cost heads.");

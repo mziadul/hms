@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import axios from "axios";
+import api from "@/utils/api";
 import { useRouter } from "next/navigation";
 import Spinner from "@/components/Spinner";
 
@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         process.env.NEXT_PUBLIC_GAS_URL!,
         null, // POST Body empty because we use query params
         { params: { action: "login", email, password } },

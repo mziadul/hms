@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from "react";
-import axios from "axios";
+import api from "@/utils/api";
 import Spinner from "@/components/Spinner";
 
 export interface User {
@@ -113,7 +113,7 @@ export default function MonthlyBillForm() {
         status: "active",
       };
 
-      const response = await axios.get(process.env.NEXT_PUBLIC_GAS_URL!, {
+      const response = await api.get(process.env.NEXT_PUBLIC_GAS_URL!, {
         params,
       });
 
@@ -177,10 +177,10 @@ export default function MonthlyBillForm() {
       setError("");
       try {
         const [usersRes, headsRes] = await Promise.all([
-          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, {
+          api.get(process.env.NEXT_PUBLIC_GAS_URL!, {
             params: { action: "getUsers", token },
           }),
-          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, {
+          api.get(process.env.NEXT_PUBLIC_GAS_URL!, {
             params: { action: "getCostHeads", token },
           }),
         ]);
@@ -273,7 +273,7 @@ export default function MonthlyBillForm() {
 
     setLoading(true);
     try {
-      const res = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
+      const res = await api.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
         params: {
           action: "getMeals",
           token,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "@/utils/api";
 
 interface User {
   id: string;
@@ -18,7 +18,7 @@ export default function UsersPage() {
     const token = localStorage.getItem("userToken");
     if (!token) return; // DashboardLayout already redirects
 
-    axios
+    api
       .get(process.env.NEXT_PUBLIC_GAS_URL!, {
         params: { action: "getUsers", token },
       })

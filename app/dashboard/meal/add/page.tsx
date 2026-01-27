@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
-import axios from "axios";
+import api from "@/utils/api";
 import Spinner from "@/components/Spinner";
 
 export default function MealSheet() {
@@ -68,10 +68,10 @@ export default function MealSheet() {
       setLoading(true);
       try {
         const [usersRes, mealsRes] = await Promise.all([
-          axios.get(process.env.NEXT_PUBLIC_GAS_URL!, {
+          api.get(process.env.NEXT_PUBLIC_GAS_URL!, {
             params: { action: "getUsers", token },
           }),
-          axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
+          api.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
             params: {
               action: "getMeals",
               token,
@@ -104,7 +104,7 @@ export default function MealSheet() {
     setLoading(true);
     setEditedMeals({});
     try {
-      const res = await axios.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
+      const res = await api.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
         params: {
           action: "getMeals",
           token,
@@ -169,7 +169,7 @@ export default function MealSheet() {
           amount: parseFloat(amount),
         };
 
-        const response = await axios.post(
+        const response = await api.post(
           process.env.NEXT_PUBLIC_GAS_URL!,
           null,
           {

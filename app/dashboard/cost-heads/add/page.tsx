@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import axios from "axios";
+import api from "@/utils/api";
 
 export default function AddCostHeadPage() {
   const [loading, setLoading] = useState(false);
@@ -27,7 +27,7 @@ export default function AddCostHeadPage() {
     }
 
     try {
-      const response = await axios.post(
+      const response = await api.post(
         process.env.NEXT_PUBLIC_GAS_URL!,
         null,
         {
