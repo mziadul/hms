@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import api from "@/utils/api";
 import Spinner from "@/components/Spinner";
+import Toaster from "@/components/Toaster";
 
 export default function MealSheet() {
   const [users, setUsers] = useState<any[]>([]);
@@ -21,6 +22,16 @@ export default function MealSheet() {
   const [selectedMonth, setSelectedMonth] = useState<number>(
     new Date().getMonth() + 1,
   );
+
+  const [toast, setToast] = useState<{
+    message: string;
+    type: ToastType;
+    isVisible: boolean;
+  }>({
+    message: "",
+    type: "info",
+    isVisible: false,
+  });
 
   const token =
     typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
@@ -142,6 +153,10 @@ export default function MealSheet() {
     }
   }, [debouncedSaveTrigger, token]);
 
+  const showToast = (message: string, type: ToastType) => {
+    setToast({ message, type, isVisible: true });
+  };
+
   // Save meal to API
   const saveMealToAPI = useCallback(
     async (userId: number, day: number, mealType: string, amount: string) => {
@@ -217,6 +232,8 @@ export default function MealSheet() {
               ];
             }
           });
+
+          showToast(`Meal saved for day ${day}`, "success");
 
           return true;
         } else {
@@ -504,6 +521,12 @@ export default function MealSheet() {
           </tbody>
         </table>
       </div>
+      <Toaster
+        message={toast.message}
+        type={toast.type}
+        isVisible={toast.isVisible}
+        onClose={() => setToast((prev) => ({ ...prev, isVisible: false }))}
+      />
     </div>
   );
 }

@@ -38,6 +38,15 @@ export interface BazarCost {
   status: string;
 }
 
+export interface BazarSlot {
+  id: number;
+  userId: number;
+  year: number;
+  month: number;
+  startDate: string;
+  endDate: string;
+}
+
 export type AmountsType = Record<string, Record<string | number, number>>;
 
 export default function MonthlyBillForm() {
@@ -63,6 +72,7 @@ export default function MonthlyBillForm() {
   const [userBazarAmounts, setUserBazarAmounts] = useState<
     Record<string, number>
   >({});
+  const [bazarSlots, setBazarSlots] = useState<BazarSlot[]>([]);
 
   const palettes = [
     {
@@ -93,6 +103,64 @@ export default function MonthlyBillForm() {
     }
     return months;
   }, [selectedYear]);
+
+  // Update the summaryData calculation in useMemo
+  const summaryData = useMemo(() => {
+    // 1. Total Global Stats
+    const totalMeals = meals.reduce((sum, m) => sum + (m.amount || 0), 0);
+    const globalMealRate = totalMeals > 0 ? bazarTotal / totalMeals : 0;
+
+    // 2. Calculations per User
+    const userStats = users.map((u) => {
+      const userIdStr = String(u.id);
+
+      // Total meals for this user in the month
+      const userTotalMeals = meals
+        .filter((m) => String(m.userId) === userIdStr)
+        .reduce((sum, m) => sum + (m.amount || 0), 0);
+
+      // Identify the user's Bazar Slot
+      const slot = bazarSlots.find((s) => String(s.userId) === userIdStr);
+
+      let mealsInSlot = 0;
+      let slotMealRate = 0;
+
+      if (slot) {
+        // Find all meals (from everyone) that happened during this user's slot dates
+        const totalMealsDuringSlot = meals
+          .filter((m) => {
+            const mealDate = m.date;
+            return (
+              mealDate >= Number(slot.startDate) &&
+              mealDate <= Number(slot.endDate)
+            );
+          })
+          .reduce((sum, m) => sum + (m.amount || 0), 0);
+
+        // Total Bazar spent during this specific slot (from BazarCost sheet)
+        const bazarDuringSlot = bazarCosts
+          .filter((b) => String(b.userId) === userIdStr)
+          .reduce((sum, b) => sum + (b.amount || 0), 0);
+
+        slotMealRate =
+          totalMealsDuringSlot > 0 ? bazarDuringSlot / totalMealsDuringSlot : 0;
+        mealsInSlot = totalMealsDuringSlot;
+      }
+
+      return {
+        ...u,
+        userTotalMeals,
+        bazarPaid: userBazarAmounts[userIdStr] || 0,
+        mealCost: userTotalMeals * globalMealRate,
+        slotMealRate,
+        mealsInSlot, // Add this to the returned object
+        hasSlot: !!slot,
+        slotRange: slot ? `${slot.startDate}-${slot.endDate}` : null,
+      };
+    });
+
+    return { totalMeals, globalMealRate, userStats };
+  }, [users, meals, bazarTotal, bazarSlots, bazarCosts, userBazarAmounts]);
 
   useEffect(() => {
     const currentDate = new Date();
@@ -131,6 +199,32 @@ export default function MonthlyBillForm() {
       setBazarLoading(false);
     }
   }, [token, selectedYear, selectedMonth]);
+
+  const fetchBazarSlots = useCallback(async () => {
+    if (!token || !selectedYear || !selectedMonth) return;
+    // setSlotsLoading(true);
+    try {
+      const response = await api.get(process.env.NEXT_PUBLIC_GAS_URL!, {
+        params: {
+          action: "getBazarSlots",
+          token,
+          year: selectedYear,
+          month: selectedMonth,
+        },
+      });
+      const slotsData = Array.isArray(response.data) ? response.data : [];
+      setBazarSlots(slotsData);
+    } catch (err) {
+      console.error("Failed to load bazar slots.");
+    } finally {
+      // setSlotsLoading(false);
+    }
+  }, [token, selectedYear, selectedMonth]);
+
+  // Trigger fetch when month/year changes
+  useEffect(() => {
+    fetchBazarSlots();
+  }, [fetchBazarSlots]);
 
   useEffect(() => {
     fetchBazarCosts();
@@ -308,11 +402,9 @@ export default function MonthlyBillForm() {
   return (
     <div className="p-2 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-sm text-gray-900 dark:text-gray-100">
       <Spinner isLoading={loading} message="Processing Bill..." />
-
       <h1 className="text-2xl font-bold mb-6 border-b border-gray-200 dark:border-gray-700 pb-2">
         Monthly Bill Statement
       </h1>
-
       <div className="grid grid-cols-2 md:flex gap-4 mb-8 items-end border-b border-gray-200 dark:border-gray-700 pb-6">
         <div className="flex flex-col">
           <label className="text-xs font-bold mb-1 opacity-70">Year</label>
@@ -366,8 +458,7 @@ export default function MonthlyBillForm() {
           Calculate Meal Cost
         </button>
       </div>
-
-      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm max-h-[65vh]">
+      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
         <table className="min-w-full text-center border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
             <tr className="bg-gray-100 dark:bg-gray-800">
@@ -486,7 +577,6 @@ export default function MonthlyBillForm() {
           </tfoot>
         </table>
       </div>
-
       <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
           <p className="text-xs font-bold uppercase opacity-60 mb-1">
@@ -514,6 +604,127 @@ export default function MonthlyBillForm() {
           >
             {grandTotal().toFixed(2)} Tk
           </p>
+        </div>
+      </div>
+
+      <div className="mt-10 mb-6">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          📊 Detailed Meal & Bazar Summary
+        </h2>
+
+        <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
+          <table className="min-w-full text-sm border-separate border-spacing-0">
+            <thead className="bg-gray-50 dark:bg-gray-800 text-left sticky top-0 z-30">
+              <tr>
+                {/* Frozen Column Header */}
+                <th className="sticky left-0 z-40 bg-gray-50 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[160px]">
+                  Manager / User
+                </th>
+                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[100px]">
+                  User Meals
+                </th>
+                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[120px]">
+                  Slot Range
+                </th>
+                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[120px]">
+                  Meals in Slot
+                </th>
+                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[110px]">
+                  Bazar Paid
+                </th>
+                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[130px]">
+                  Slot Meal Rate
+                </th>
+                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-right min-w-[120px]">
+                  Total Meal Cost
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white dark:bg-gray-900">
+              {summaryData.userStats.map((stat, idx) => (
+                <tr
+                  key={stat.id}
+                  className="group hover:bg-blue-50/40 dark:hover:bg-blue-900/10"
+                >
+                  {/* Frozen Column Body */}
+                  <td className="sticky left-0 z-20 p-3 bg-white dark:bg-gray-900 border-b border-r border-gray-100 dark:border-gray-800 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] group-hover:bg-inherit">
+                    <div className="font-bold text-gray-900 dark:text-gray-100">
+                      {stat.name}
+                    </div>
+                    {stat.hasSlot && (
+                      <div className="text-[10px] text-orange-600 font-medium">
+                        Active Slot Manager
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
+                    {stat.userTotalMeals.toFixed(1)}
+                  </td>
+                  <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
+                    {stat.slotRange ? (
+                      <span className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded text-xs">
+                        {stat.slotRange}
+                      </span>
+                    ) : (
+                      <span className="opacity-30">—</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-center font-semibold border-b border-gray-100 dark:border-gray-800">
+                    {stat.mealsInSlot > 0 ? (
+                      <span className="bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
+                        {stat.mealsInSlot.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="opacity-30">—</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-center font-semibold text-red-500 border-b border-gray-100 dark:border-gray-800">
+                    {stat.bazarPaid.toFixed(2)}
+                  </td>
+                  <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
+                    {stat.slotMealRate > 0 ? (
+                      <span className="bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-700 dark:text-blue-300">
+                        {stat.slotMealRate.toFixed(2)} /meal
+                      </span>
+                    ) : (
+                      <span className="opacity-30">—</span>
+                    )}
+                  </td>
+                  <td className="p-3 text-right font-bold text-green-600 border-b border-gray-100 dark:border-gray-800">
+                    {stat.mealCost.toFixed(2)} Tk
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-100 dark:bg-gray-800/50 font-black sticky bottom-0 z-30">
+              <tr>
+                {/* Frozen Column Footer */}
+                <td className="sticky left-0 z-40 bg-gray-100 dark:bg-gray-800 p-3 border-r border-gray-200 dark:border-gray-700">
+                  GLOBAL TOTALS
+                </td>
+                <td className="p-3 text-center">
+                  {summaryData.totalMeals.toFixed(1)}
+                </td>
+                <td className="p-3 text-center">—</td>
+                <td className="p-3 text-center">
+                  {summaryData.userStats
+                    .reduce((sum, stat) => sum + stat.mealsInSlot, 0)
+                    .toFixed(1)}
+                </td>
+                <td className="p-3 text-center text-red-600">
+                  {bazarTotal.toFixed(2)}
+                </td>
+                <td className="p-3 text-center">
+                  Avg: {summaryData.globalMealRate.toFixed(2)}
+                </td>
+                <td className="p-3 text-right text-green-700">
+                  {(
+                    summaryData.totalMeals * summaryData.globalMealRate
+                  ).toFixed(2)}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     </div>
