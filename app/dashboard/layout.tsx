@@ -8,37 +8,24 @@ interface Props {
   children: React.ReactNode;
 }
 
-interface SubMenuItem {
-  label: string;
-  path: string;
-}
-
-interface MenuItem {
-  label: string;
-  icon?: string;
-  path?: string;
-  subMenu?: SubMenuItem[];
-  isAdminOnly?: boolean; // নতুন প্রপার্টি: শুধু এডমিনদের জন্য কি না
-}
-
 export default function DashboardLayout({ children }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [userName, setUserName] = useState<string>("User");
   const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
   const [isLoaded, setIsLoaded] = useState(false);
+  
+  // NEW: Separate states for mobile drawer and desktop collapse
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
-  // ১. মেনু ডেফিনেশন (isAdminOnly ফ্ল্যাগসহ)
-  const menus: MenuItem[] = [
-    {
-      label: "Dashboard",
-      icon: "🏠",
-      path: "/dashboard",
-    },
+  const menus = [
+    { label: "Dashboard", icon: "🏠", path: "/dashboard" },
     {
       label: "Users",
       icon: "👥",
-      isAdminOnly: true, // Restricted
+      isAdminOnly: true,
       subMenu: [
         { label: "List Users", path: "/dashboard/users" },
         { label: "Add User", path: "/dashboard/users/add" },
@@ -47,7 +34,7 @@ export default function DashboardLayout({ children }: Props) {
     {
       label: "Cost Heads",
       icon: "💰",
-      isAdminOnly: true, // Restricted
+      isAdminOnly: true,
       subMenu: [
         { label: "List Cost Heads", path: "/dashboard/cost-heads" },
         { label: "Add Cost Head", path: "/dashboard/cost-heads/add" },
@@ -56,141 +43,141 @@ export default function DashboardLayout({ children }: Props) {
     {
       label: "Generate Bill",
       icon: "🧾",
-      isAdminOnly: true, // Restricted
+      isAdminOnly: true,
       subMenu: [{ label: "Bill Generation", path: "/dashboard/generate-bill" }],
     },
-    {
-      label: "Add Meal",
-      icon: "🍲",
-      path: "/dashboard/meal/add", // সবার জন্য উন্মুক্ত
-    },
+    { label: "Add Meal", icon: "🍲", path: "/dashboard/meal/add" },
   ];
 
   useEffect(() => {
     const token = localStorage.getItem("userToken");
     const info = localStorage.getItem("userInfo");
-
-    if (!token || !info) {
-      router.push("/login");
-      return;
-    }
+    if (!token || !info) { router.push("/login"); return; }
 
     const userData = JSON.parse(info);
     setUserRole(userData.type);
+    setUserName(userData.name || "User");
 
-    // ২. অ্যাক্সেস কন্ট্রোল লজিক:
-    // যদি সাধারণ ইউজার এডমিন ইউআরএল এ ঢোকার চেষ্টা করে, ড্যাশবোর্ডে পাঠিয়ে দাও
-    const currentMenu = menus.find(
-      (m) => m.path === pathname || m.subMenu?.some((s) => s.path === pathname),
-    );
-
-    if (userData.type !== "admin" && currentMenu?.isAdminOnly) {
-      router.push("/dashboard");
-    }
-
-    // মেনু অটো-এক্সপ্যান্ড লজিক
     const newOpenMenus: Record<string, boolean> = {};
     menus.forEach((menu) => {
       if (menu.subMenu) {
-        newOpenMenus[menu.label] = menu.subMenu.some((sub) =>
-          pathname?.startsWith(sub.path),
-        );
+        newOpenMenus[menu.label] = menu.subMenu.some((sub) => pathname?.startsWith(sub.path));
       }
     });
     setOpenMenus(newOpenMenus);
     setIsLoaded(true);
   }, [pathname, router]);
 
-  const toggleMenu = (label: string) => {
-    setOpenMenus((prev) => ({ ...prev, [label]: !prev[label] }));
+  const toggleSidebar = () => {
+    // If mobile, toggle the drawer. If desktop, toggle collapse.
+    if (window.innerWidth < 1024) {
+      setIsMobileOpen(!isMobileOpen);
+    } else {
+      setIsDesktopCollapsed(!isDesktopCollapsed);
+    }
   };
 
-  const isActive = (path: string) => pathname === path;
+  if (!isLoaded) return null;
 
-  const menuItemClass = (path: string) =>
-    `px-4 py-2 rounded hover:bg-blue-600 transition-colors ${
-      isActive(path) ? "bg-blue-800 font-bold" : ""
-    }`;
-
-  // ৩. সাইডবার ফিল্টারিং লজিক
-  const filteredMenus = menus.filter((menu) => {
-    if (menu.isAdminOnly && userRole !== "admin") return false;
-    return true;
-  });
-
-  if (!isLoaded) return null; // হাইড্রেশন এরর এড়াতে
+  const filteredMenus = menus.filter(m => !m.isAdminOnly || userRole === "admin");
 
   return (
-    <div className="flex min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Sidebar */}
-      <aside className="w-64 bg-gradient-to-b from-blue-600 to-blue-800 dark:from-gray-800 dark:to-gray-900 text-white p-6 flex flex-col shadow-xl">
-        <h2 className="text-2xl font-bold mb-6 border-b border-blue-400 pb-4">
-          {userRole === "admin" ? "Admin Panel" : "User Panel"}
-        </h2>
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
+      {/* 1. Mobile Overlay */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setIsMobileOpen(false)} />
+      )}
 
-        <nav className="flex flex-col gap-2">
-          {filteredMenus.map((menu) => (
-            <div key={menu.label}>
-              {menu.subMenu ? (
-                <>
-                  <button
-                    onClick={() => toggleMenu(menu.label)}
-                    className={`w-full flex justify-between items-center px-4 py-2 rounded hover:bg-blue-500 transition-colors ${
-                      openMenus[menu.label] ? "bg-blue-700 font-bold" : ""
-                    }`}
-                  >
-                    <span className="flex items-center gap-2">
-                      {menu.icon} {menu.label}
-                    </span>
-                    <span className="text-xs">
-                      {openMenus[menu.label] ? "▲" : "▼"}
-                    </span>
-                  </button>
+      {/* 2. Sidebar */}
+      <aside
+        className={`bg-blue-700 dark:bg-gray-800 text-white transition-all duration-300 ease-in-out z-50
+          fixed inset-y-0 left-0 lg:relative lg:translate-x-0
+          ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
+          ${isDesktopCollapsed ? "lg:w-20" : "lg:w-64 w-64"}
+        `}
+      >
+        <div className="flex flex-col h-full">
+          <div className="h-16 flex items-center justify-between px-6 border-b border-blue-600 dark:border-gray-700">
+            <span className={`font-bold text-xl transition-opacity ${isDesktopCollapsed ? "lg:opacity-0 lg:w-0" : "opacity-100"}`}>
+              MealApp
+            </span>
+            <button className="lg:hidden text-white" onClick={() => setIsMobileOpen(false)}>✕</button>
+          </div>
 
-                  {openMenus[menu.label] && (
-                    <div className="flex flex-col ml-6 mt-1 gap-1 border-l border-blue-400">
-                      {menu.subMenu.map((sub) => (
-                        <Link
-                          key={sub.path}
-                          href={sub.path}
-                          className={menuItemClass(sub.path)}
-                        >
-                          {sub.label}
-                        </Link>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <Link
-                  href={menu.path!}
-                  className={`flex items-center gap-2 px-4 py-2 rounded hover:bg-blue-500 transition-colors ${
-                    isActive(menu.path!) ? "bg-blue-700 font-bold" : ""
-                  }`}
-                >
-                  {menu.icon} {menu.label}
-                </Link>
-              )}
-            </div>
-          ))}
+          <nav className="flex-1 overflow-y-auto py-4 space-y-1 custom-scrollbar">
+            {filteredMenus.map((menu) => (
+              <div key={menu.label} className="px-3">
+                {menu.subMenu && !isDesktopCollapsed ? (
+                  <>
+                    <button
+                      onClick={() => setOpenMenus(p => ({ ...p, [menu.label]: !p[menu.label] }))}
+                      className="w-full flex items-center justify-between p-3 rounded-lg hover:bg-blue-600 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl">{menu.icon}</span>
+                        <span>{menu.label}</span>
+                      </div>
+                      <span className="text-xs">{openMenus[menu.label] ? "▲" : "▼"}</span>
+                    </button>
+                    {openMenus[menu.label] && (
+                      <div className="mt-1 ml-9 space-y-1 border-l border-blue-400/30">
+                        {menu.subMenu.map((sub) => (
+                          <Link key={sub.path} href={sub.path} className={`block p-2 text-sm rounded-md hover:text-white ${pathname === sub.path ? "text-white font-bold" : "text-blue-200"}`}>
+                            {sub.label}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <Link href={menu.path || "#"} className={`flex items-center gap-3 p-3 rounded-lg hover:bg-blue-600 transition-colors ${pathname === menu.path ? "bg-blue-800 shadow-inner" : ""}`}>
+                    <span className="text-xl">{menu.icon}</span>
+                    <span className={`${isDesktopCollapsed ? "lg:hidden" : "block"}`}>{menu.label}</span>
+                  </Link>
+                )}
+              </div>
+            ))}
+          </nav>
 
-          <button
-            onClick={() => {
-              localStorage.removeItem("userToken");
-              localStorage.removeItem("userInfo");
-              router.push("/login");
-            }}
-            className="mt-8 px-4 py-2 rounded bg-red-500 hover:bg-red-600 transition-all font-semibold shadow-md"
-          >
-            Logout 🔒
-          </button>
-        </nav>
+          <div className="p-4 border-t border-blue-600 dark:border-gray-700">
+            <button onClick={() => { localStorage.clear(); router.push("/login"); }} className="w-full flex items-center justify-center gap-2 p-2 bg-red-500 hover:bg-red-600 rounded-lg text-sm font-semibold">
+              <span>🔒</span> {!isDesktopCollapsed && "Logout"}
+            </button>
+          </div>
+        </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 p-8 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-50 overflow-y-auto">
-        <div className="max-w-6xl mx-auto">{children}</div>
-      </main>
+      {/* 3. Main Body */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-16 bg-white dark:bg-gray-800 border-b dark:border-gray-700 flex items-center justify-between px-4 z-30 shadow-sm">
+          <div className="flex items-center gap-4">
+            {/* COLLAPSE BUTTON - Always visible */}
+            <button 
+              onClick={toggleSidebar} 
+              className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-200 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <h1 className="font-semibold text-gray-700 dark:text-gray-200 truncate">
+              {userName}&apos;s Portal
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-3 pr-2">
+             <div className="w-9 h-9 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold ring-2 ring-blue-100">
+                {userName[0].toUpperCase()}
+             </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-auto bg-gray-50 dark:bg-gray-900 p-4">
+          <div className="max-w-full mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

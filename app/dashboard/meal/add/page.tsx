@@ -25,6 +25,19 @@ export default function MealSheet() {
   const token =
     typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
 
+  const palettes = [
+    {
+      header: "bg-blue-50 dark:bg-blue-900/30",
+      body: "bg-white dark:bg-gray-900",
+      text: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      header: "bg-gray-100 dark:bg-gray-800",
+      body: "bg-gray-50/50 dark:bg-gray-800/30",
+      text: "text-gray-600 dark:text-gray-400",
+    },
+  ];
+
   // Dynamic years array: 2024 থেকে current year পর্যন্ত
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -311,18 +324,20 @@ export default function MealSheet() {
   };
 
   return (
-    <div className="p-4 bg-white dark:bg-gray-900 min-h-screen text-sm">
+    <div className="p-2 md:p-4 bg-white dark:bg-gray-900 min-h-screen text-sm text-gray-900 dark:text-gray-100">
       <Spinner isLoading={loading} message="Processing Request..." />
-      {/* ফিল্টার সেকশন */}
-      <div className="flex gap-4 mb-6 items-end border-b pb-4">
-        <div>
-          <label className="block text-xs font-bold mb-1">Year</label>
+
+      {/* ফিল্টার সেকশন - Responsive Grid */}
+      <div className="grid grid-cols-2 md:flex gap-4 mb-6 items-end border-b border-gray-200 dark:border-gray-700 pb-4">
+        <div className="flex flex-col">
+          <label className="block text-xs font-bold mb-1 opacity-70">
+            Year
+          </label>
           <select
-            className="border p-2 rounded"
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
-            <option value="0">Select Year</option>
             {years.map((year) => (
               <option key={year} value={year}>
                 {year}
@@ -330,14 +345,15 @@ export default function MealSheet() {
             ))}
           </select>
         </div>
-        <div>
-          <label className="block text-xs font-bold mb-1">Month</label>
+        <div className="flex flex-col">
+          <label className="block text-xs font-bold mb-1 opacity-70">
+            Month
+          </label>
           <select
-            className="border p-2 rounded"
+            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
           >
-            <option value="0">Select Month</option>
             {months.map((month) => (
               <option key={month.value} value={month.value}>
                 {month.name}
@@ -347,136 +363,138 @@ export default function MealSheet() {
         </div>
         <button
           onClick={fetchMeals}
-          className="bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-md"
+          className="col-span-2 md:col-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-md transition-colors disabled:opacity-50"
           disabled={loading}
         >
           {loading ? "Loading..." : "Filter & Load Data"}
         </button>
       </div>
 
-      {/* Status indicators */}
-      <div className="mb-4 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs">
-        <div className="flex items-center gap-4 mb-2">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse"></div>
-            <span>Saving (auto-save in 1.5s)</span>
+      {/* Status Indicators */}
+      <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg text-xs">
+        <div className="flex flex-wrap items-center gap-4 mb-2">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></div>
+            <span className="opacity-80">Saving</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-            <span>Saved to Google Sheets</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 bg-green-500 rounded-full"></div>
+            <span className="opacity-80">Saved</span>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-            <span>Error - Click to retry</span>
+          <div className="flex items-center gap-1.5">
+            <div className="w-2.5 h-2.5 bg-red-500 rounded-full"></div>
+            <span className="opacity-80">Error</span>
           </div>
         </div>
         {activeCell && (
-          <div className="text-blue-600">⚡ Editing cell: {activeCell}</div>
+          <div className="text-blue-500 font-medium">
+            ⚡ Editing: {activeCell}
+          </div>
         )}
-        {error && <div className="text-red-600">{error}</div>}
+        {error && <div className="text-red-600 font-bold">{error}</div>}
       </div>
 
-      {/* টেবিল */}
-      <div className="overflow-x-auto border rounded-lg shadow-sm">
-        <table className="min-w-full text-center border-collapse">
-          <thead className="bg-gray-100 dark:bg-gray-800 sticky top-0 z-10">
+      {/* টেবিল কন্টেইনার */}
+      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm max-h-[75vh]">
+        <table className="min-w-full text-center border-separate border-spacing-0">
+          <thead className="sticky top-0 z-30">
             <tr>
-              <th className="border p-2 min-w-[80px]">Date</th>
-              {users.map((user) => (
-                <th
-                  key={user.id}
-                  className="border p-2 min-w-[150px] bg-blue-50 dark:bg-blue-900/20 text-black dark:text-white"
-                  colSpan={3}
-                >
-                  {user.name}
-                </th>
-              ))}
+              {/* Sticky Top-Left Corner Header */}
+              <th
+                rowSpan={2}
+                className="sticky top-0 left-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-200 dark:border-gray-700 p-2 min-w-[90px] font-bold"
+              >
+                Date
+              </th>
+              {users.map((user, idx) => {
+                const p = palettes[idx % 2];
+                return (
+                  <th
+                    key={user.id}
+                    className={`border-b border-r border-gray-200 dark:border-gray-700 p-2 min-w-[140px] bg-blue-50/80 dark:bg-blue-900/40 text-blue-900 dark:text-blue-100 font-bold ${p.header}`}
+                    colSpan={3}
+                  >
+                    {user.name}
+                  </th>
+                );
+              })}
             </tr>
-            <tr className="bg-gray-50 dark:bg-gray-800 text-[10px] font-bold">
-              <th className="border"></th>
+            <tr className="bg-gray-50 dark:bg-gray-800 text-[10px] font-bold sticky top-[37px] z-30">
               {users.map((user) => (
                 <React.Fragment key={`sub-${user.id}`}>
-                  <th className="border p-1 text-blue-600">B</th>
-                  <th className="border p-1 text-green-600">L</th>
-                  <th className="border p-1 text-red-600">D</th>
+                  <th className="border-b border-r border-gray-200 dark:border-gray-700 p-1 text-blue-600 dark:text-blue-400">
+                    B
+                  </th>
+                  <th className="border-b border-r border-gray-200 dark:border-gray-700 p-1 text-green-600 dark:text-green-400">
+                    L
+                  </th>
+                  <th className="border-b border-r border-gray-200 dark:border-gray-700 p-1 text-red-600 dark:text-red-400">
+                    D
+                  </th>
                 </React.Fragment>
               ))}
             </tr>
           </thead>
-          <tbody>
+
+          <tbody className="bg-white dark:bg-gray-900">
             {daysInMonth.map((day) => (
               <tr
                 key={day}
-                className="hover:bg-gray-50 dark:hover:bg-gray-800 border-b"
+                className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
               >
-                {/* তারিখের কলাম */}
-                <td className="border p-2 font-bold bg-gray-50 dark:bg-gray-800 text-black dark:text-white">
-                  {day < 10 ? `0${day}` : day}-
+                {/* Sticky Date Column (Locked to left) */}
+                <td className="sticky left-0 z-20 border-b border-r border-gray-200 dark:border-gray-700 p-2 font-bold bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 shadow-[1px_0_0_0_rgba(0,0,0,0.1)] dark:shadow-[1px_0_0_0_rgba(255,255,255,0.05)]">
+                  {day < 10 ? `0${day}` : day}/
                   {selectedMonth < 10 ? `0${selectedMonth}` : selectedMonth}
                 </td>
 
-                {/* প্রতি ইউজারের জন্য ৩টি সেল (B, L, D) */}
                 {users.map((user) => {
-                  const mealTypes = [
-                    { key: "b", label: "B" },
-                    { key: "l", label: "L" },
-                    { key: "d", label: "D" },
-                  ];
-
-                  return mealTypes.map(({ key, label }) => {
+                  const mealTypes = ["b", "l", "d"];
+                  return mealTypes.map((key) => {
                     const value = getCellValue(user.id, day, key);
                     const cellKey = `${user.id}-${day}-${key}`;
                     const status = saveStatus[cellKey];
                     const isActive = activeCell === cellKey;
 
                     return (
-                      <td key={cellKey} className="border p-0 w-12 relative">
-                        <div className="relative">
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="0"
-                            className={`w-full h-10 text-center bg-transparent focus:bg-yellow-100 dark:focus:bg-yellow-900/30 outline-none ${
-                              value
-                                ? "text-black dark:text-white font-medium"
-                                : "text-gray-400"
-                            } ${isActive ? "ring-2 ring-blue-500" : ""}`}
-                            value={value}
-                            onChange={(e) =>
-                              handleInputChange(
-                                user.id,
-                                day,
-                                key,
-                                e.target.value,
-                              )
-                            }
-                            onBlur={(e) =>
-                              handleInputBlur(user.id, day, key, e.target.value)
-                            }
-                            onFocus={(e) => {
-                              e.target.select();
-                              setActiveCell(cellKey);
-                            }}
-                          />
-
-                          {/* Status indicator */}
-                          {status && (
+                      <td
+                        key={cellKey}
+                        className="border-b border-r border-gray-200 dark:border-gray-700 p-0 w-12 relative"
+                      >
+                        <input
+                          type="number"
+                          step="0.5"
+                          inputMode="decimal"
+                          className={`w-full h-10 text-center bg-transparent outline-none transition-all
+                            ${value ? "text-gray-900 dark:text-white font-bold" : "text-gray-400 dark:text-gray-500"}
+                            ${isActive ? "bg-blue-100 dark:bg-blue-900/60 ring-1 ring-inset ring-blue-500" : ""}
+                            focus:bg-blue-50 dark:focus:bg-blue-900/40`}
+                          value={value}
+                          onChange={(e) =>
+                            handleInputChange(user.id, day, key, e.target.value)
+                          }
+                          onBlur={(e) =>
+                            handleInputBlur(user.id, day, key, e.target.value)
+                          }
+                          onFocus={(e) => {
+                            e.target.select();
+                            setActiveCell(cellKey);
+                          }}
+                        />
+                        {/* Status Indicator Dot */}
+                        {status && (
+                          <div className="absolute top-1 right-1 pointer-events-none">
                             <div
-                              className="absolute top-1 right-1"
-                              title={status}
-                            >
-                              {status === "saving" && (
-                                <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                              )}
-                              {status === "saved" && (
-                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                              )}
-                              {status === "error" && (
-                                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                              className={`w-1.5 h-1.5 rounded-full ${
+                                status === "saving"
+                                  ? "bg-blue-500 animate-pulse"
+                                  : status === "saved"
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                              }`}
+                            />
+                          </div>
+                        )}
                       </td>
                     );
                   });
