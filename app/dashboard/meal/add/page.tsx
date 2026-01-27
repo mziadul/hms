@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import api from "@/utils/api";
 import Spinner from "@/components/Spinner";
-import Toaster from "@/components/Toaster";
+import Toaster, { type ToastType } from "@/components/Toaster";
 
 export default function MealSheet() {
   const [users, setUsers] = useState<any[]>([]);
