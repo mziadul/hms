@@ -28,7 +28,6 @@ export default function DashboardLayout({ children }: Props) {
       isAdminOnly: true,
       subMenu: [
         { label: "List Users", path: "/dashboard/users" },
-        { label: "Add User", path: "/dashboard/users/add" },
       ],
     },
     {
@@ -37,7 +36,6 @@ export default function DashboardLayout({ children }: Props) {
       isAdminOnly: true,
       subMenu: [
         { label: "List Cost Heads", path: "/dashboard/cost-heads" },
-        { label: "Add Cost Head", path: "/dashboard/cost-heads/add" },
       ],
     },
     {
