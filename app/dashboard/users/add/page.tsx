@@ -11,12 +11,10 @@ export default function AddUserPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    id: "",
     name: "",
     email: "",
     password: "",
     type: "",
-    updatedBy: "",
   });
 
   const [toast, setToast] = useState<{
@@ -48,7 +46,7 @@ export default function AddUserPage() {
     try {
       const res = await api.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
         params: {
-          action: "addUser", // Matches GAS script
+          action: "addUser",
           token,
           ...form,
         },
@@ -56,7 +54,7 @@ export default function AddUserPage() {
 
       if (res.data?.success) {
         showToast(res.data.success, "success");
-        setForm({ id: "", name: "", email: "", password: "", type: "", updatedBy: "" });
+        setForm({ name: "", email: "", password: "", type: "" });
       } else {
         showToast(res.data?.error || "Failed to add user.", "error");
       }
@@ -85,19 +83,6 @@ export default function AddUserPage() {
           className="bg-gray-50 dark:bg-gray-800 p-6 md:p-8 rounded-xl border border-gray-200 dark:border-gray-700 shadow-lg space-y-5"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-black uppercase text-gray-500 dark:text-gray-400">Member ID</label>
-              <input
-                type="text"
-                name="id"
-                value={form.id}
-                onChange={handleChange}
-                placeholder="e.g. 101"
-                className="w-full p-2.5 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                required
-              />
-            </div>
-
             <div className="flex flex-col gap-1">
               <label className="text-xs font-black uppercase text-gray-500 dark:text-gray-400">Full Name</label>
               <input
@@ -150,19 +135,6 @@ export default function AddUserPage() {
                 <option value="admin">Administrator</option>
                 <option value="user">Regular User</option>
               </select>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-black uppercase text-gray-500 dark:text-gray-400">Authorized By</label>
-              <input
-                type="text"
-                name="updatedBy"
-                value={form.updatedBy}
-                onChange={handleChange}
-                placeholder="Admin Name"
-                className="w-full p-2.5 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                required
-              />
             </div>
           </div>
 
