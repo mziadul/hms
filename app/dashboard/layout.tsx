@@ -31,11 +31,21 @@ export default function DashboardLayout({ children }: Props) {
       ],
     },
     {
-      label: "Cost Heads",
+      label: "Costs",
       icon: "💰",
       isAdminOnly: true,
       subMenu: [
-        { label: "List Cost Heads", path: "/dashboard/cost-heads" },
+        { label: "Cost Heads", path: "/dashboard/cost-heads" },
+        { label: "Bazar Cost", path: "/dashboard/bazar-costs" },
+        { label: "Custom Cost", path: "/dashboard/custom-costs" },
+      ],
+    },
+    {
+      label: "Bazar",
+      icon: "💰",
+      isAdminOnly: true,
+      subMenu: [
+        { label: "Slot", path: "/dashboard/bazar-slots" },
       ],
     },
     {
