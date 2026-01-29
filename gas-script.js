@@ -20,10 +20,14 @@ function doPost(e) {
   if (!currentUser) return jsonResponse({ error: 'Invalid or expired token' });
 
   switch (action) {
-    case 'addUser': return addUser(e);
-    case 'addCostHead': return addCostHead(e);
+    case 'upsertUsers': return upsertUsers(e, currentUser);
+    case 'upsertCostHeads': return upsertCostHeads(e, currentUser);
     case 'updateMeals': return addOrUpdateMealsBatch(e, currentUser);
     case 'getMeals': return getMeals(e, currentUser); // consistency check
+    case 'updateBazarSlots': return addOrUpdateBazarSlots(e);
+    case 'upsertBazarCosts': return upsertBazarCosts(e, currentUser);
+    case 'upsertDateRanges': return upsertDateRanges(e, currentUser);
+    case 'upsertCustomValues': return upsertCustomValues(e);
     default: return jsonResponse({ error: 'Invalid action' });
   }
 }
@@ -44,6 +48,8 @@ function doGet(e) {
       });
     case 'getBazarCosts': return getBazarCosts(e);
     case 'getMeals': return getMeals(e, currentUser);
+    case 'getBazarSlots': return getBazarSlots(e);
+    case 'getCustomValuesData': return getCustomValuesData(e);
     default: return jsonResponse({ error: 'Invalid action' });
   }
 }
@@ -110,14 +116,79 @@ function verifyToken(token) {
 /**
  * নতুন ইউজার অ্যাড করা
  */
-function addUser(e) {
+function upsertUsers(e, currentUser) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users');
+  var range = sheet.getDataRange();
+  var data = range.getValues(); 
+  var headers = data[0];
+  
+  var payload = JSON.parse(e.parameter.users);
+  var incomingUsers = payload.users; 
+  var activeIds = payload.activeIds.map(function(id) { return String(id); });
+
   var now = new Date();
-  var userRow = [
-    e.parameter.id, e.parameter.name, e.parameter.email, 
-    e.parameter.password, e.parameter.type, now, now, e.parameter.updatedBy
-  ];
-  SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users').appendRow(userRow);
-  return jsonResponse({ success: 'User added successfully' });
+
+  // 1. FILTER: Handle Deletions
+  var updatedData = data.filter(function(row, index) {
+    if (index === 0) return true; 
+    return activeIds.indexOf(String(row[0])) !== -1;
+  });
+
+  // 2. Calculate next ID
+  var lastId = 0;
+  if (updatedData.length > 1) {
+    lastId = Math.max.apply(Math, updatedData.slice(1).map(function(r) { 
+      return parseInt(r[0]) || 0; 
+    }));
+  }
+
+  // 3. UPSERT Logic
+  incomingUsers.forEach(function(userInput) {
+    var existingRowIndex = -1;
+    
+    if (userInput.id) {
+      for (var i = 1; i < updatedData.length; i++) {
+        if (String(updatedData[i][0]) === String(userInput.id)) {
+          existingRowIndex = i;
+          break;
+        }
+      }
+    }
+
+    if (existingRowIndex > -1) {
+      // UPDATE: ID[0], Name[1], Email[2], Pass[3], Type[4], Created[5], Updated[6], By[7]
+      updatedData[existingRowIndex][1] = userInput.name;
+      updatedData[existingRowIndex][2] = userInput.email;
+      
+      // EFFECTIVE STORAGE: Only update password if a new one is typed
+      if (userInput.password && userInput.password.trim() !== "") {
+        updatedData[existingRowIndex][3] = userInput.password;
+      }
+      
+      updatedData[existingRowIndex][4] = userInput.type;
+      updatedData[existingRowIndex][6] = now;
+      updatedData[existingRowIndex][7] = currentUser.name;
+    } else {
+      // INSERT: Generate new ID and add row
+      lastId++;
+      updatedData.push([
+        lastId,
+        userInput.name,
+        userInput.email,
+        userInput.password, // Mandatory check is handled in TSX
+        userInput.type,
+        now, 
+        now, 
+        currentUser.name
+      ]);
+    }
+  });
+
+  // 4. Atomic Write
+  sheet.clearContents();
+  sheet.getRange(1, 1, updatedData.length, headers.length).setValues(updatedData);
+
+  return jsonResponse({ success: true });
 }
 
 /**
@@ -138,20 +209,23 @@ function getMeals(e, currentUser) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Meals");
   if (!sheet) return jsonResponse([]);
 
-  var fYear = e.parameter.year, fMonth = e.parameter.month, fDate = e.parameter.date, fUserId = e.parameter.userId;
+  // প্যারামিটার থেকে ফিল্টারগুলো নেওয়া হচ্ছে
+  var fYear = e.parameter.year, 
+      fMonth = e.parameter.month, 
+      fDate = e.parameter.date, 
+      fUserId = e.parameter.userId;
+
   var data = sheet.getDataRange().getValues();
   
   var meals = data.slice(1).filter(function(r) {
-    var rowUserId = r[1], year = r[2], month = r[3], date = r[4];
+    // এখানে কোনো Admin/User চেক নেই
+    // যদি fUserId দেওয়া থাকে তবে শুধু সেই ইউজারের ডেটা দেখাবে, নতুবা সবারটা
+    if (fUserId && String(r[1]) !== String(fUserId)) return false;
     
-    // Auth logic
-    if (currentUser.type !== "admin" && rowUserId != currentUser.id) return false;
-    if (currentUser.type === "admin" && fUserId && rowUserId != fUserId) return false;
-    
-    // Filter logic
-    if (fYear && year != fYear) return false;
-    if (fMonth && month != fMonth) return false;
-    if (fDate && date != fDate) return false;
+    // তারিখের ফিল্টারগুলো
+    if (fYear && r[2] != fYear) return false;
+    if (fMonth && r[3] != fMonth) return false;
+    if (fDate && r[4] != fDate) return false;
     
     return true;
   }).map(function(r) {
@@ -171,11 +245,20 @@ function addOrUpdateMealsBatch(e, currentUser) {
   var updatedCount = 0, insertedCount = 0;
 
   records.forEach(function (rec) {
-    var mealUserId = (currentUser.type === "admin" && rec.userId) ? parseInt(rec.userId) : currentUser.id;
+    // রিকোয়েস্ট থেকে আসা userId সরাসরি ব্যবহার করা হচ্ছে
+    // যদি রিকোয়েস্টে userId না থাকে তবেই কেবল বর্তমান ইউজারের id ব্যবহার হবে
+    var mealUserId = rec.userId ? String(rec.userId) : String(currentUser.id);
     var found = false;
 
     for (var i = 1; i < data.length; i++) {
-      if (data[i][1] == mealUserId && data[i][2] == rec.year && data[i][3] == rec.month && data[i][4] == rec.date && data[i][5] == rec.type) {
+      // টাইপ সেফ কম্পারিজন (String)
+      if (
+        String(data[i][1]) === mealUserId && 
+        data[i][2] == rec.year && 
+        data[i][3] == rec.month && 
+        data[i][4] == rec.date && 
+        data[i][5] == rec.type
+      ) {
         sheet.getRange(i + 1, 7).setValue(parseFloat(rec.amount));
         updatedCount++;
         found = true;
@@ -184,6 +267,7 @@ function addOrUpdateMealsBatch(e, currentUser) {
     }
 
     if (!found) {
+      // রেকর্ড না থাকলে নতুন এন্ট্রি
       sheet.appendRow([data.length + insertedCount, mealUserId, rec.year, rec.month, rec.date, rec.type, parseFloat(rec.amount)]);
       insertedCount++;
     }
@@ -216,6 +300,182 @@ function getBazarCosts(e) {
   return jsonResponse(results);
 }
 
+/**
+ * Optimized Upsert for Bazar Costs
+ * Matches exactly: ID, User ID, Year, Month, Amount, Status (6 Columns)
+ */
+function upsertBazarCosts(e, currentUser) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('BazarCost');
+    if (!sheet) return jsonResponse({ error: "Sheet 'BazarCost' not found" });
+
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    
+    // Parse Payload
+    var payload = JSON.parse(e.parameter.data || "{}");
+    var incomingItems = payload.items || []; 
+    var activeIds = (payload.activeIds || []).map(function(id) { return String(id); });
+    
+    // Period Filters from URL params (Forced to String)
+    var filterYear = String(e.parameter.year || "").trim(); 
+    var filterMonth = String(e.parameter.month || "").trim();
+
+    var finalRows = [headers];
+    var updatedCount = 0;
+    var insertedCount = 0;
+
+    // 1. Process Existing Data
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var rowId = String(row[0]);
+      var rowYear = String(row[2]).trim(); 
+      var rowMonth = String(row[3]).trim();
+
+      // Check if row belongs to current filter period
+      if (rowYear === filterYear && rowMonth === filterMonth) {
+        // Keep only if ID is still in UI (handles deletions)
+        if (activeIds.indexOf(rowId) !== -1) {
+          // Check for Updates
+          var updateItem = incomingItems.find(function(item) { 
+            return item.id && String(item.id) === rowId; 
+          });
+
+          if (updateItem) {
+            row[1] = String(updateItem.userId);
+            row[4] = Number(updateItem.amount);
+            row[5] = updateItem.status;
+            updatedCount++;
+          }
+          finalRows.push(row);
+        }
+      } else {
+        // Keep data from all other months untouched
+        finalRows.push(row);
+      }
+    }
+
+    // 2. Handle New Insertions
+    var maxId = 0;
+    data.forEach(function(r) { 
+      var id = parseInt(r[0]); 
+      if (!isNaN(id) && id > maxId) maxId = id; 
+    });
+
+    incomingItems.forEach(function(item) {
+      if (!item.id) { // New row if no ID
+        maxId++;
+        finalRows.push([
+          maxId,
+          String(item.userId),
+          filterYear,
+          filterMonth,
+          Number(item.amount),
+          item.status || "active"
+        ]);
+        insertedCount++;
+      }
+    });
+
+    // 3. Save Atomic Write
+    sheet.clearContents();
+    sheet.getRange(1, 1, finalRows.length, 6).setValues(finalRows);
+
+    return jsonResponse({ 
+      success: true, 
+      inserted: insertedCount, 
+      updated: updatedCount 
+    });
+
+  } catch (err) {
+    return jsonResponse({ error: "GAS Error: " + err.message });
+  }
+}
+
+/**
+ * Upsert for Date Ranges Sheet
+ * Columns: ID, User ID, Year, Month, Start Date, End Date
+ */
+function upsertDateRanges(e, currentUser) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('BazarSlot'); // Ensure your sheet name matches
+    if (!sheet) return jsonResponse({ error: "Sheet 'BazarSlot' not found" });
+
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    
+    var payload = JSON.parse(e.parameter.data || "{}");
+    var incomingItems = payload.items || []; 
+    var activeIds = (payload.activeIds || []).map(function(id) { return String(id); });
+    
+    var filterYear = String(e.parameter.year || "").trim(); 
+    var filterMonth = String(e.parameter.month || "").trim();
+
+    var finalRows = [headers];
+    var updatedCount = 0;
+    var insertedCount = 0;
+
+    // 1. Separate current period
+    for (var i = 1; i < data.length; i++) {
+      var row = data[i];
+      var rowId = String(row[0]);
+      var rowYear = String(row[2]).trim(); 
+      var rowMonth = String(row[3]).trim();
+
+      if (rowYear === filterYear && rowMonth === filterMonth) {
+        if (activeIds.indexOf(rowId) !== -1) {
+          var updateItem = incomingItems.find(function(item) { 
+            return item.id && String(item.id) === rowId; 
+          });
+
+          if (updateItem) {
+            row[1] = String(updateItem.userId);
+            row[4] = updateItem.startDate; // Expecting YYYY-MM-DD
+            row[5] = updateItem.endDate;   // Expecting YYYY-MM-DD
+            updatedCount++;
+          }
+          finalRows.push(row);
+        }
+      } else {
+        finalRows.push(row);
+      }
+    }
+
+    // 2. ID Auto-increment
+    var maxId = 0;
+    data.forEach(function(r) { 
+      var id = parseInt(r[0]); 
+      if (!isNaN(id) && id > maxId) maxId = id; 
+    });
+
+    // 3. Insert New
+    incomingItems.forEach(function(item) {
+      if (!item.id) {
+        maxId++;
+        finalRows.push([
+          maxId,
+          String(item.userId),
+          filterYear,
+          filterMonth,
+          item.startDate,
+          item.endDate
+        ]);
+        insertedCount++;
+      }
+    });
+
+    sheet.clearContents();
+    sheet.getRange(1, 1, finalRows.length, 6).setValues(finalRows);
+
+    return jsonResponse({ success: true, inserted: insertedCount, updated: updatedCount });
+
+  } catch (err) {
+    return jsonResponse({ error: "GAS Error: " + err.message });
+  }
+}
+
 // --- 5. HELPERS ---
 
 function jsonResponse(obj) {
@@ -229,12 +489,76 @@ function initCostHeadsSheet() {
   return sheet;
 }
 
-function addCostHead(e) {
-  if (!e.parameter.name || !e.parameter.type) return jsonResponse({ error: "Missing name or type" });
-  var sheet = initCostHeadsSheet();
-  var id = sheet.getLastRow(), now = new Date();
-  sheet.appendRow([id, e.parameter.name, e.parameter.type, now, now]);
-  return jsonResponse({ success: "Cost head added", id: id });
+function upsertCostHeads(e, currentUser) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('CostHeads');
+    if (!sheet) return jsonResponse({ error: "Sheet 'CostHeads' not found" });
+
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0]; // ID, Name, Amount, Type, CreatedAt, UpdatedAt (6 columns)
+    
+    var payload = JSON.parse(e.parameter.data);
+    var incomingHeads = payload.costHeads; 
+    var activeIds = payload.activeIds.map(function(id) { return String(id); });
+    var now = new Date();
+
+    // 1. DELETE logic: Keep only active IDs
+    var updatedData = data.filter(function(row, index) {
+      if (index === 0) return true;
+      return activeIds.indexOf(String(row[0])) !== -1;
+    });
+
+    // 2. ID calculation (Auto-increment)
+    var lastId = 0;
+    if (updatedData.length > 1) {
+      lastId = Math.max.apply(Math, updatedData.slice(1).map(function(r) { 
+        return parseInt(r[0]) || 0; 
+      }));
+    }
+
+    // 3. UPSERT logic (Matching 6 columns)
+    incomingHeads.forEach(function(item) {
+      if (!item.name || item.amount === null) return;
+
+      var existingRowIndex = -1;
+      if (item.id) {
+        for (var i = 1; i < updatedData.length; i++) {
+          if (String(updatedData[i][0]) === String(item.id)) {
+            existingRowIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (existingRowIndex > -1) {
+        // UPDATE: [0]ID, [1]Name, [2]Amount, [3]Type, [4]CreatedAt(keep), [5]UpdatedAt
+        updatedData[existingRowIndex][1] = item.name;
+        updatedData[existingRowIndex][2] = Number(item.amount);
+        updatedData[existingRowIndex][3] = item.type;
+        updatedData[existingRowIndex][5] = now; // Updated At
+      } else {
+        // INSERT: [0]ID, [1]Name, [2]Amount, [3]Type, [4]CreatedAt, [5]UpdatedAt
+        lastId++;
+        updatedData.push([
+          lastId,            // Auto Increment ID
+          item.name, 
+          Number(item.amount), 
+          item.type, 
+          now,               // Created At
+          now                // Updated At
+        ]);
+      }
+    });
+
+    // 4. Clear and Write (Atomic update)
+    sheet.clearContents();
+    sheet.getRange(1, 1, updatedData.length, 6).setValues(updatedData);
+
+    return jsonResponse({ success: true });
+  } catch (err) {
+    return jsonResponse({ error: err.message });
+  }
 }
 
 function getCostHeads() {
@@ -254,4 +578,155 @@ function getCustomValues() {
     customs[uId][String(data[i][1])] = parseFloat(data[i][2]);
   }
   return customs;
+}
+
+/**
+ * BazarSlot ডাটা রিড করা (Flexible Filters)
+ */
+function getBazarSlots(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("BazarSlot");
+  if (!sheet) return jsonResponse({ error: "BazarSlot sheet not found" });
+
+  var fYear = e.parameter.year;
+  var fMonth = e.parameter.month;
+  var fUserId = e.parameter.userId;
+
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  
+  var slots = data.slice(1).filter(function(r) {
+    if (fUserId && String(r[1]) !== String(fUserId)) return false;
+    if (fYear && String(r[2]) !== String(fYear)) return false;
+    if (fMonth && String(r[3]) !== String(fMonth)) return false;
+    return true;
+  }).map(function(r) {
+    return {
+      id: r[0],
+      userId: r[1],
+      year: r[2],
+      month: r[3],
+      startDate: r[4],
+      endDate: r[5]
+    };
+  });
+
+  return jsonResponse(slots);
+}
+
+/**
+ * একসাথে অনেকগুলো BazarSlot অ্যাড বা আপডেট করা (Bulk/Batch)
+ */
+function addOrUpdateBazarSlots(e) {
+  var records = JSON.parse(e.parameter.records || "[]");
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("BazarSlot");
+  var data = sheet.getDataRange().getValues();
+  
+  var updatedCount = 0;
+  var insertedCount = 0;
+
+  records.forEach(function(rec) {
+    var found = false;
+    var rowId = String(rec.id);
+
+    // ১. চেক করা হচ্ছে ID অলরেডি আছে কিনা (আপডেটের জন্য)
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]) === rowId) {
+        // আপডেট ম্যাপিং: ID, UserID, Year, Month, StartDate, EndDate
+        var range = sheet.getRange(i + 1, 1, 1, 6);
+        range.setValues([[
+          rec.id, rec.userId, rec.year, rec.month, rec.startDate, rec.endDate
+        ]]);
+        updatedCount++;
+        found = true;
+        break;
+      }
+    }
+
+    // ২. যদি ID না পাওয়া যায়, তবে নতুন রো ইনসার্ট করা হবে
+    if (!found) {
+      sheet.appendRow([
+        rec.id || (sheet.getLastRow() + 1), // যদি ID না থাকে তবে অটো জেনারেট
+        rec.userId, 
+        rec.year, 
+        rec.month, 
+        rec.startDate, 
+        rec.endDate
+      ]);
+      insertedCount++;
+    }
+  });
+
+  return jsonResponse({ 
+    success: true, 
+    inserted: insertedCount, 
+    updated: updatedCount 
+  });
+}
+
+/**
+ * GET Data for Custom Assignments
+ * Returns nested structure: { costHeads: [], customValues: { userId: { costId: amount } } }
+ */
+function getCustomValuesData(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 1. Get Cost Heads
+  var sheetHeads = ss.getSheetByName('CostHeads');
+  var headsData = sheetHeads ? sheetHeads.getDataRange().getValues() : [];
+  var costHeads = headsData.slice(1).map(function(r) {
+    return { id: String(r[0]), name: String(r[1]), amount: r[2], type: r[3] };
+  });
+
+  // 2. Get Custom Values (Mapping Table)
+  var sheetValues = ss.getSheetByName('CustomValues');
+  var valuesData = sheetValues ? sheetValues.getDataRange().getValues() : [];
+  var customValues = {};
+
+  for (var i = 1; i < valuesData.length; i++) {
+    var uId = String(valuesData[i][0]);
+    var cId = String(valuesData[i][1]);
+    var amt = valuesData[i][2];
+    
+    if (!customValues[uId]) customValues[uId] = {};
+    customValues[uId][cId] = amt;
+  }
+
+  return jsonResponse({
+    costHeads: costHeads,
+    customValues: customValues
+  });
+}
+
+/**
+ * UPSERT Custom Values
+ * Overwrites the sheet to match the UI state (handles deletes automatically)
+ */
+function upsertCustomValues(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('CustomValues');
+    if (!sheet) return jsonResponse({ error: "Sheet 'CustomValues' not found" });
+
+    var headers = ["User ID", "Cost Head ID", "Amount"];
+    var payload = JSON.parse(e.parameter.data || "{}");
+    var incomingItems = payload.items || [];
+
+    var finalData = [headers];
+    incomingItems.forEach(function(item) {
+      if (item.userId && item.costHeadId) {
+        finalData.push([
+          String(item.userId),
+          String(item.costHeadId),
+          Number(item.amount || 0)
+        ]);
+      }
+    });
+
+    sheet.clearContents();
+    sheet.getRange(1, 1, finalData.length, 3).setValues(finalData);
+
+    return jsonResponse({ success: true, count: incomingItems.length });
+  } catch (err) {
+    return jsonResponse({ error: err.message });
+  }
 }
