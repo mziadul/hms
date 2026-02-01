@@ -165,11 +165,11 @@ export default function MealSheet() {
         return false;
       }
 
-      if (!amount || parseFloat(amount) === 0) {
-        const key = `${userId}-${day}-${mealType.toLowerCase()}`;
-        setSaveStatus((prev) => ({ ...prev, [key]: "saved" }));
-        return true;
-      }
+      // if (!amount || parseFloat(amount) === 0) {
+      //   const key = `${userId}-${day}-${mealType.toLowerCase()}`;
+      //   setSaveStatus((prev) => ({ ...prev, [key]: "saved" }));
+      //   return true;
+      // }
 
       const key = `${userId}-${day}-${mealType.toLowerCase()}`;
       setSaveStatus((prev) => ({ ...prev, [key]: "saving" }));
@@ -280,9 +280,9 @@ export default function MealSheet() {
     const key = `${userId}-${day}-${mealType.toLowerCase()}`;
     setActiveCell(null);
 
-    if (!value || parseFloat(value) === 0) {
-      return;
-    }
+    // if (!value || parseFloat(value) === 0) {
+    //   return;
+    // }
 
     setSaveTrigger({
       userId,
