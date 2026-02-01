@@ -175,13 +175,18 @@ export default function MealSheet() {
       setSaveStatus((prev) => ({ ...prev, [key]: "saving" }));
 
       try {
+
+        const numericAmount = (amount === null || amount === "" || isNaN(parseFloat(amount))) 
+              ? 0 
+              : parseFloat(amount);
+        
         const record = {
           userId: userId,
           year: selectedYear,
           month: selectedMonth,
           date: day,
           type: mealType.toUpperCase(),
-          amount: parseFloat(amount),
+          amount: numericAmount,
         };
 
         const response = await api.post(
