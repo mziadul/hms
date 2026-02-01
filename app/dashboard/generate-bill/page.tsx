@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import api from "@/utils/api";
 import Spinner from "@/components/Spinner";
 import React from "react";
+import { useRouter } from "next/navigation"; // Added router for redirection
 
 export interface User {
   id: string;
@@ -50,6 +51,7 @@ export interface BazarSlot {
 export type AmountsType = Record<string, Record<string | number, number>>;
 
 export default function MonthlyBillForm() {
+  const router = useRouter(); // Initialize router
   const [users, setUsers] = useState<User[]>([]);
   const [costHeads, setCostHeads] = useState<CostHead[]>([]);
   const [customValues, setCustomValues] = useState<
@@ -59,10 +61,9 @@ export default function MonthlyBillForm() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [token, setToken] = useState<string | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState(false); // Track authorization status
 
   const [meals, setMeals] = useState<Meal[]>([]);
-  const [mealCosts, setMealCosts] = useState<Record<string, number>>({});
-  const [mealLoading, setMealLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState<number>(0);
   const [selectedYear, setSelectedYear] = useState<number>(0);
 
@@ -73,6 +74,29 @@ export default function MonthlyBillForm() {
     Record<string, number>
   >({});
   const [bazarSlots, setBazarSlots] = useState<BazarSlot[]>([]);
+
+  // Authorization and Date Initialization
+  useEffect(() => {
+    const info = localStorage.getItem("userInfo");
+    const storedToken = localStorage.getItem("userToken");
+
+    if (!storedToken || !info) {
+      router.push("/login");
+      return;
+    }
+
+    const userData = JSON.parse(info);
+    if (userData.type !== "admin") {
+      router.replace("/dashboard");
+      return;
+    }
+
+    const currentDate = new Date();
+    setSelectedYear(currentDate.getFullYear());
+    setSelectedMonth(currentDate.getMonth() + 1);
+    setToken(storedToken);
+    setIsAuthorized(true);
+  }, [router]);
 
   const palettes = [
     {
@@ -104,29 +128,21 @@ export default function MonthlyBillForm() {
     return months;
   }, [selectedYear]);
 
-  // Update the summaryData calculation in useMemo
   const summaryData = useMemo(() => {
-    // 1. Total Global Stats
     const totalMeals = meals.reduce((sum, m) => sum + (m.amount || 0), 0);
     const globalMealRate = totalMeals > 0 ? bazarTotal / totalMeals : 0;
 
-    // 2. Calculations per User
     const userStats = users.map((u) => {
       const userIdStr = String(u.id);
-
-      // Total meals for this user in the month
       const userTotalMeals = meals
         .filter((m) => String(m.userId) === userIdStr)
         .reduce((sum, m) => sum + (m.amount || 0), 0);
 
-      // Identify the user's Bazar Slot
       const slot = bazarSlots.find((s) => String(s.userId) === userIdStr);
-
       let mealsInSlot = 0;
       let slotMealRate = 0;
 
       if (slot) {
-        // Find all meals (from everyone) that happened during this user's slot dates
         const totalMealsDuringSlot = meals
           .filter((m) => {
             const mealDate = m.date;
@@ -137,7 +153,6 @@ export default function MonthlyBillForm() {
           })
           .reduce((sum, m) => sum + (m.amount || 0), 0);
 
-        // Total Bazar spent during this specific slot (from BazarCost sheet)
         const bazarDuringSlot = bazarCosts
           .filter((b) => String(b.userId) === userIdStr)
           .reduce((sum, b) => sum + (b.amount || 0), 0);
@@ -153,7 +168,7 @@ export default function MonthlyBillForm() {
         bazarPaid: userBazarAmounts[userIdStr] || 0,
         mealCost: userTotalMeals * globalMealRate,
         slotMealRate,
-        mealsInSlot, // Add this to the returned object
+        mealsInSlot,
         hasSlot: !!slot,
         slotRange: slot ? `${slot.startDate}-${slot.endDate}` : null,
       };
@@ -161,13 +176,6 @@ export default function MonthlyBillForm() {
 
     return { totalMeals, globalMealRate, userStats };
   }, [users, meals, bazarTotal, bazarSlots, bazarCosts, userBazarAmounts]);
-
-  useEffect(() => {
-    const currentDate = new Date();
-    setSelectedYear(currentDate.getFullYear());
-    setSelectedMonth(currentDate.getMonth() + 1);
-    setToken(localStorage.getItem("userToken"));
-  }, []);
 
   const fetchBazarCosts = useCallback(async () => {
     if (!token || !selectedYear || !selectedMonth) return;
@@ -202,7 +210,6 @@ export default function MonthlyBillForm() {
 
   const fetchBazarSlots = useCallback(async () => {
     if (!token || !selectedYear || !selectedMonth) return;
-    // setSlotsLoading(true);
     try {
       const response = await api.get(process.env.NEXT_PUBLIC_GAS_URL!, {
         params: {
@@ -216,22 +223,19 @@ export default function MonthlyBillForm() {
       setBazarSlots(slotsData);
     } catch (err) {
       console.error("Failed to load bazar slots.");
-    } finally {
-      // setSlotsLoading(false);
     }
   }, [token, selectedYear, selectedMonth]);
 
-  // Trigger fetch when month/year changes
   useEffect(() => {
-    fetchBazarSlots();
-  }, [fetchBazarSlots]);
+    if (isAuthorized) fetchBazarSlots();
+  }, [fetchBazarSlots, isAuthorized]);
 
   useEffect(() => {
-    fetchBazarCosts();
-  }, [fetchBazarCosts]);
+    if (isAuthorized) fetchBazarCosts();
+  }, [fetchBazarCosts, isAuthorized]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !isAuthorized) return;
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -263,7 +267,7 @@ export default function MonthlyBillForm() {
       }
     };
     fetchData();
-  }, [token]);
+  }, [token, isAuthorized]);
 
   useEffect(() => {
     setAmounts((prev) => {
@@ -385,6 +389,9 @@ export default function MonthlyBillForm() {
     });
     return counts;
   }, [meals]);
+
+  if (!isAuthorized)
+    return <Spinner isLoading={true} message="Verifying access..." />;
 
   if (error)
     return (
@@ -616,7 +623,6 @@ export default function MonthlyBillForm() {
           <table className="min-w-full text-sm border-separate border-spacing-0">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left sticky top-0 z-30">
               <tr>
-                {/* Frozen Column Header */}
                 <th className="sticky left-0 z-40 bg-gray-50 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[160px]">
                   Manager / User
                 </th>
@@ -646,7 +652,6 @@ export default function MonthlyBillForm() {
                   key={stat.id}
                   className="group hover:bg-blue-50/40 dark:hover:bg-blue-900/10"
                 >
-                  {/* Frozen Column Body */}
                   <td className="sticky left-0 z-20 p-3 bg-white dark:bg-gray-900 border-b border-r border-gray-100 dark:border-gray-800 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] group-hover:bg-inherit">
                     <div className="font-bold text-gray-900 dark:text-gray-100">
                       {stat.name}
@@ -698,7 +703,6 @@ export default function MonthlyBillForm() {
             </tbody>
             <tfoot className="bg-gray-100 dark:bg-gray-800/50 font-black sticky bottom-0 z-30">
               <tr>
-                {/* Frozen Column Footer */}
                 <td className="sticky left-0 z-40 bg-gray-100 dark:bg-gray-800 p-3 border-r border-gray-200 dark:border-gray-700">
                   GLOBAL TOTALS
                 </td>
