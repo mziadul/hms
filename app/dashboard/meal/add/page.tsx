@@ -482,7 +482,8 @@ export default function MealSheet() {
                           type="number"
                           step="0.5"
                           inputMode="decimal"
-                          className={`w-full h-10 text-center bg-transparent outline-none transition-all
+                          className={`w-full h-10 text-center bg-transparent outline-none transition-all 
+                            [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
                             ${value ? "text-gray-900 dark:text-white font-bold" : "text-gray-400 dark:text-gray-500"}
                             ${isActive ? "bg-blue-100 dark:bg-blue-900/60 ring-1 ring-inset ring-blue-500" : ""}
                             focus:bg-blue-50 dark:focus:bg-blue-900/40`}
@@ -519,6 +520,58 @@ export default function MealSheet() {
               </tr>
             ))}
           </tbody>
+          {/* Footer for Totals */}
+          <tfoot className="sticky bottom-0 z-30 bg-gray-100 dark:bg-gray-800 font-bold shadow-[0_-2px_5px_rgba(0,0,0,0.1)]">
+            {/* Row 1: Individual Meal Totals (B, L, D) */}
+            <tr>
+              <td className="sticky left-0 z-40 bg-gray-200 dark:bg-gray-700 border-t border-r border-gray-300 dark:border-gray-600 p-2 text-[10px] uppercase">
+                Meal Totals
+              </td>
+              {users.map((user) => {
+                const mealTypes = ["breakfast", "lunch", "dinner"];
+                return mealTypes.map((type) => {
+                  const total = meals
+                    .filter(
+                      (m) =>
+                        Number(m.userId) === Number(user.id) &&
+                        m.type.toLowerCase().startsWith(type[0]),
+                    )
+                    .reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+
+                  return (
+                    <td
+                      key={`total-${user.id}-${type}`}
+                      className="border-t border-r border-gray-300 dark:border-gray-600 p-2 text-blue-700 dark:text-blue-400"
+                    >
+                      {total > 0 ? total : "-"}
+                    </td>
+                  );
+                });
+              })}
+            </tr>
+
+            {/* Row 2: Grand Total Per User */}
+            <tr className="bg-blue-100 dark:bg-blue-900/60">
+              <td className="sticky left-0 z-40 bg-blue-200 dark:bg-blue-800 border-t border-r border-gray-300 dark:border-gray-600 p-2 text-[10px] uppercase font-black text-blue-900 dark:text-blue-100">
+                Grand Total
+              </td>
+              {users.map((user) => {
+                const grandTotal = meals
+                  .filter((m) => Number(m.userId) === Number(user.id))
+                  .reduce((sum, m) => sum + (Number(m.amount) || 0), 0);
+
+                return (
+                  <td
+                    key={`grand-${user.id}`}
+                    colSpan={3}
+                    className="border-t border-r border-gray-300 dark:border-gray-600 p-2 text-base font-black text-blue-900 dark:text-blue-100"
+                  >
+                    {grandTotal > 0 ? grandTotal : "-"}
+                  </td>
+                );
+              })}
+            </tr>
+          </tfoot>
         </table>
       </div>
       <Toaster
