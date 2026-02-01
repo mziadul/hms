@@ -34,15 +34,17 @@ export default function DashboardLayout({ children }: Props) {
       isAdminOnly: true,
       subMenu: [
         { label: "Cost Heads", path: "/dashboard/cost-heads" },
-        { label: "Bazar Cost", path: "/dashboard/bazar-costs" },
         { label: "Custom Cost", path: "/dashboard/custom-costs" },
       ],
     },
     {
       label: "Bazar",
       icon: "🛒",
-      isAdminOnly: true,
-      subMenu: [{ label: "Slot", path: "/dashboard/bazar-slots" }],
+      isAdminOnly: false,
+      subMenu: [
+        { label: "Slot", path: "/dashboard/bazar-slots" },
+        { label: "Bazar Cost", path: "/dashboard/bazar-costs" },
+      ],
     },
     {
       label: "Generate Bill",

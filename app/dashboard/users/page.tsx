@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import api from "@/utils/api";
 import Spinner from "@/components/Spinner";
+import { useRouter } from "next/navigation";
 
 interface User {
   id?: string;
@@ -13,15 +14,33 @@ interface User {
 }
 
 export default function UsersPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [originalUsers, setOriginalUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [error, setError] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
+    const info = localStorage.getItem("userInfo");
+    const token = localStorage.getItem("userToken");
+
+    if (!token || !info) {
+      router.push("/login");
+      return;
+    }
+
+    const userData = JSON.parse(info);
+
+    if (userData.type !== "admin") {
+      router.replace("/dashboard");
+      return;
+    }
+
+    setIsAuthorized(true);
     fetchUsers();
-  }, []);
+  }, [router]);
 
   const fetchUsers = () => {
     const token = localStorage.getItem("userToken");
@@ -56,7 +75,6 @@ export default function UsersPage() {
     setUsers([...users, { name: "", email: "", password: "", type: "user" }]);
   };
 
-  // NEW: Remove row from local state
   const removeRow = (index: number) => {
     if (
       confirm("Remove this user from the list? (Changes applied after saving)")
@@ -68,8 +86,6 @@ export default function UsersPage() {
 
   const handleSave = async () => {
     const token = localStorage.getItem("userToken");
-
-    // 1. VALIDATION: Check for mandatory passwords on NEW rows
     const missingPassword = users.some(
       (u) => !u.id && (!u.password || u.password.trim() === ""),
     );
@@ -78,37 +94,29 @@ export default function UsersPage() {
       return;
     }
 
-    // 2. Identify changed or new rows
     const changedUsers = users.filter((user) => {
-      if (!user.id) return true; // Always send new users
+      if (!user.id) return true;
       const original = originalUsers.find((o) => o.id === user.id);
-
       return (
         !original ||
         user.name !== original.name ||
         user.email !== original.email ||
         user.type !== original.type ||
         (user.password && user.password.trim() !== "")
-      ); // Only send if user typed something
+      );
     });
 
     const activeIds = users.filter((u) => u.id).map((u) => u.id);
 
     setLoading(true);
     try {
-      const payload = {
-        users: changedUsers,
-        activeIds: activeIds,
-      };
-
+      const payload = { users: changedUsers, activeIds: activeIds };
       const formData = new FormData();
       formData.append("users", JSON.stringify(payload));
-
       await api.post(
         `${process.env.NEXT_PUBLIC_GAS_URL}?action=upsertUsers&token=${token}`,
         formData,
       );
-
       setIsEditing(false);
       fetchUsers();
       alert("Sync complete!");
@@ -118,6 +126,10 @@ export default function UsersPage() {
       setLoading(false);
     }
   };
+
+  if (!isAuthorized) {
+    return <Spinner isLoading={true} message="Verifying access..." />;
+  }
 
   return (
     <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
@@ -200,7 +212,6 @@ export default function UsersPage() {
                   key={idx}
                   className={`${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-100 dark:bg-gray-800/40"} ${isChanged ? "bg-yellow-50 dark:bg-yellow-900/10" : ""}`}
                 >
-                  {/* Action Column */}
                   <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800 text-center">
                     {isEditing ? (
                       <button
@@ -216,15 +227,13 @@ export default function UsersPage() {
                       </span>
                     )}
                   </td>
-
                   <td className="px-6 py-4 font-mono text-xs font-bold text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800">
                     {u.id || "NEW"}
                   </td>
-
                   <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <input
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none"
+                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
                         value={u.name}
                         onChange={(e) =>
                           handleInputChange(idx, "name", e.target.value)
@@ -234,11 +243,10 @@ export default function UsersPage() {
                       <span className="font-bold">{u.name}</span>
                     )}
                   </td>
-
                   <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <input
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none"
+                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
                         value={u.email}
                         onChange={(e) =>
                           handleInputChange(idx, "email", e.target.value)
@@ -248,12 +256,11 @@ export default function UsersPage() {
                       <span>{u.email}</span>
                     )}
                   </td>
-
                   <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <input
                         type="text"
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none"
+                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
                         value={u.password || ""}
                         placeholder="New password"
                         onChange={(e) =>
@@ -264,11 +271,10 @@ export default function UsersPage() {
                       <span className="text-gray-400 italic">********</span>
                     )}
                   </td>
-
                   <td className="px-6 py-4">
                     {isEditing ? (
                       <select
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-1 py-1 rounded outline-none"
+                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-1 py-1 rounded outline-none text-gray-900 dark:text-white"
                         value={u.type}
                         onChange={(e) =>
                           handleInputChange(idx, "type", e.target.value)
