@@ -46,13 +46,13 @@ export default function DashboardLayout({ children }: Props) {
         { label: "Bazar Cost", path: "/dashboard/bazar-costs" },
       ],
     },
+    { label: "Add Meal", icon: "🍲", path: "/dashboard/meal/add" },
     {
       label: "Generate Bill",
       icon: "🧾",
       isAdminOnly: true,
       subMenu: [{ label: "Bill Generation", path: "/dashboard/generate-bill" }],
     },
-    { label: "Add Meal", icon: "🍲", path: "/dashboard/meal/add" },
   ];
 
   useEffect(() => {
