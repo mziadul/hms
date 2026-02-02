@@ -175,11 +175,11 @@ export default function MealSheet() {
       setSaveStatus((prev) => ({ ...prev, [key]: "saving" }));
 
       try {
+        const numericAmount =
+          amount === null || amount === "" || isNaN(parseFloat(amount))
+            ? 0
+            : parseFloat(amount);
 
-        const numericAmount = (amount === null || amount === "" || isNaN(parseFloat(amount))) 
-              ? 0 
-              : parseFloat(amount);
-        
         const record = {
           userId: userId,
           year: selectedYear,
@@ -493,6 +493,15 @@ export default function MealSheet() {
                             ${isActive ? "bg-blue-100 dark:bg-blue-900/60 ring-1 ring-inset ring-blue-500" : ""}
                             focus:bg-blue-50 dark:focus:bg-blue-900/40`}
                           value={value}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          onKeyDown={(e) => {
+                            if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+                              e.preventDefault();
+                            }
+                          }}
+                          onTouchMove={(e) =>
+                            (e.target as HTMLInputElement).blur()
+                          }
                           onChange={(e) =>
                             handleInputChange(user.id, day, key, e.target.value)
                           }
