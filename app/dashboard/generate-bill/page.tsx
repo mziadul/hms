@@ -406,6 +406,79 @@ export default function MonthlyBillForm() {
       </div>
     );
 
+  const sendSummaryEmail = async () => {
+    if (!summaryData || users.length === 0) {
+      return alert("No data available to send.");
+    }
+
+    setLoading(true);
+    const monthName = months.find(m => m.value === selectedMonth)?.name || "Summary";
+    const subject = `Monthly Bill Statement: ${monthName} ${selectedYear}`;
+
+    // 1. GLOBAL SECTION
+    let text = `--- MONTHLY BILL SUMMARY: ${monthName?.toUpperCase()} ${selectedYear} ---\n`;
+    text += `Total Bazar    : ${bazarTotal.toFixed(2)} Tk\n`;
+    text += `Total Meals    : ${summaryData.totalMeals.toFixed(1)}\n`;
+    text += `Global Rate    : ${summaryData.globalMealRate.toFixed(2)} Tk/meal\n`;
+    text += `============================================================\n\n`;
+
+    // 2. MEMBER WISE DETAILED BREAKDOWN
+    text += `MEMBER WISE BREAKDOWN:\n`;
+    
+    summaryData.userStats.forEach(u => {
+      const userIdStr = String(u.id);
+      const userAmounts = amounts[userIdStr] || {};
+      
+      text += `------------------------------------------------------------\n`;
+      text += `NAME: ${u.name.toUpperCase()}\n`;
+      
+      // Slot & Bazar Data
+      if (u.hasSlot) {
+        text += `> Bazar Management Slot: ${u.slotRange}\n`;
+        text += `> Meals in your Slot   : ${u.mealsInSlot.toFixed(1)}\n`;
+        text += `> Slot Meal Rate       : ${u.slotMealRate.toFixed(2)} Tk\n`;
+      }
+      text += `Bazar Paid             : ${u.bazarPaid.toFixed(2)} Tk\n`;
+      text += `Total Meals Taken      : ${u.userTotalMeals.toFixed(1)}\n`;
+      
+      text += `\nCOST BREAKDOWN:\n`;
+      
+      // Dynamic Cost Heads (Rent, Maid, Internet, etc.)
+      costHeads.forEach(head => {
+        const amt = userAmounts[head.id] || 0;
+        text += `- ${head.name.padEnd(15)}: ${amt.toFixed(2)} Tk\n`;
+      });
+
+      // Meal Cost
+      const mCost = userAmounts['meal'] || 0;
+      text += `- ${"Meal Cost".padEnd(15)}: ${mCost.toFixed(2)} Tk\n`;
+
+      // Grand Total for this user
+      const pTotal = userTotal(userIdStr);
+      text += `\nNET PAYABLE: ${pTotal.toFixed(2)} Tk ${pTotal < 0 ? '(REFUND)' : ''}\n`;
+    });
+
+    text += `============================================================\n`;
+    text += `Generated on: ${new Date().toLocaleString()}\n`;
+
+    try {
+      await api.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
+        params: { 
+          action: "sendNotification", 
+          token, 
+          subject, 
+          message: text 
+        }
+      });
+      alert("✅ Detailed summary email sent successfully!");
+    } catch (err) { 
+      console.error(err);
+      alert("❌ Failed to send email."); 
+    } finally { 
+      setLoading(false); 
+    }
+  };
+
   return (
     <div className="p-2 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-sm text-gray-900 dark:text-gray-100">
       <Spinner isLoading={loading} message="Processing Bill..." />
@@ -465,6 +538,12 @@ export default function MonthlyBillForm() {
           Calculate Meal Cost
         </button>
       </div>
+      <button
+        onClick={sendSummaryEmail} // Link the function here
+        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"
+      >
+        📧 Send Summary Mail
+      </button>
       <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
         <table className="min-w-full text-center border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
