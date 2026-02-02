@@ -255,6 +255,51 @@ export default function MealSheet() {
     [token, selectedYear, selectedMonth],
   );
 
+  const canUserEdit = (day: number, mealType: string) => {
+    if (process.env.NEXT_PUBLIC_ALLOW_EDIT === "true") return true;
+
+    const info =
+      typeof window !== "undefined" ? localStorage.getItem("userInfo") : null;
+    const userData = info ? JSON.parse(info) : null;
+    const isAdmin = userData?.type === "admin";
+
+    if (isAdmin) return true;
+
+    const now = new Date();
+    const today = now.getDate();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const currentHour = now.getHours();
+
+    if (selectedYear > currentYear) return true;
+    if (selectedYear === currentYear && selectedMonth > currentMonth)
+      return true;
+    if (
+      selectedYear < currentYear ||
+      (selectedYear === currentYear && selectedMonth < currentMonth)
+    )
+      return false;
+
+    const type = mealType.toLowerCase();
+    if (day > today) return true;
+
+    if (day === today) {
+      if (
+        (type === "b" ||
+          type === "breakfast" ||
+          type === "l" ||
+          type === "lunch") &&
+        currentHour >= 6
+      )
+        return false;
+      if ((type === "d" || type === "dinner") && currentHour >= 17)
+        return false;
+      return true;
+    }
+
+    return false;
+  };
+
   // Handle input change
   const handleInputChange = (
     userId: number,
@@ -262,6 +307,14 @@ export default function MealSheet() {
     mealType: string,
     value: string,
   ) => {
+    if (!canUserEdit(day, mealType)) {
+      showToast(
+        "সময় পার হয়ে গেছে, আপনি এখন এটি পরিবর্তন করতে পারবেন না।",
+        "error",
+      );
+      return;
+    }
+
     const key = `${userId}-${day}-${mealType.toLowerCase()}`;
 
     setEditedMeals((prev) => ({ ...prev, [key]: value }));
@@ -487,11 +540,18 @@ export default function MealSheet() {
                           type="number"
                           step="0.5"
                           inputMode="decimal"
+                          disabled={!canUserEdit(day, key)}
                           className={`w-full h-10 text-center bg-transparent outline-none transition-all 
                             [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
                             ${value ? "text-gray-900 dark:text-white font-bold" : "text-gray-400 dark:text-gray-500"}
                             ${isActive ? "bg-blue-100 dark:bg-blue-900/60 ring-1 ring-inset ring-blue-500" : ""}
-                            focus:bg-blue-50 dark:focus:bg-blue-900/40`}
+                            focus:bg-blue-50 dark:focus:bg-blue-900/40
+                            ${
+                              !canUserEdit(day, key)
+                                ? "!bg-gray-400/15 dark:!bg-black/60 cursor-not-allowed !text-gray-600 dark:!text-gray-500 opacity-100 shadow-inner"
+                                : "focus:bg-blue-50 dark:focus:bg-blue-900/40"
+                            }
+                            `}
                           value={value}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           onKeyDown={(e) => {
