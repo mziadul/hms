@@ -140,7 +140,7 @@ export default function MealSheet() {
     value: string;
   } | null>(null);
 
-  const debouncedSaveTrigger = useDebounce(saveTrigger, 1500);
+  const debouncedSaveTrigger = useDebounce(saveTrigger, 1000);
 
   useEffect(() => {
     if (debouncedSaveTrigger && token) {
