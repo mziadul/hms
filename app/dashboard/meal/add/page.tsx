@@ -508,6 +508,12 @@ export default function MealSheet() {
                   </th>
                 </React.Fragment>
               ))}
+              <th
+                rowSpan={2}
+                className="sticky right-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-l border-gray-200 dark:border-gray-700 p-2 min-w-[80px] font-black text-[10px] uppercase shadow-[-1px_0_0_0_rgba(0,0,0,0.1)]"
+              >
+                Day Total
+              </th>
             </tr>
           </thead>
 
@@ -591,6 +597,40 @@ export default function MealSheet() {
                     );
                   });
                 })}
+                <td className="sticky right-0 z-20 border-b border-l border-gray-200 dark:border-gray-700 p-1 bg-gray-50 dark:bg-gray-800 shadow-[-2px_0_5px_rgba(0,0,0,0.1)]">
+                  {(() => {
+                    const dayMeals = meals.filter(
+                      (m) => Number(m.date) === Number(day),
+                    );
+
+                    const b = dayMeals
+                      .filter((m) => m.type.toLowerCase().startsWith("b"))
+                      .reduce((s, m) => s + (Number(m.amount) || 0), 0);
+                    const l = dayMeals
+                      .filter((m) => m.type.toLowerCase().startsWith("l"))
+                      .reduce((s, m) => s + (Number(m.amount) || 0), 0);
+                    const d = dayMeals
+                      .filter((m) => m.type.toLowerCase().startsWith("d"))
+                      .reduce((s, m) => s + (Number(m.amount) || 0), 0);
+                    const total = b + l + d;
+
+                    if (total === 0)
+                      return <span className="text-gray-400">-</span>;
+
+                    return (
+                      <div className="flex flex-col leading-tight text-[10px]">
+                        <div className="flex justify-between px-1">
+                          <span className="text-blue-600">B:{b}</span>
+                          <span className="text-green-600">L:{l}</span>
+                          <span className="text-red-600">D:{d}</span>
+                        </div>
+                        <div className="mt-1 border-t border-gray-300 dark:border-gray-600 font-black text-sm text-gray-900 dark:text-white">
+                          {total}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -644,6 +684,10 @@ export default function MealSheet() {
                   </td>
                 );
               })}
+              <td className="sticky right-0 z-40 bg-blue-200 dark:bg-blue-800 border-t border-l border-gray-300 dark:border-gray-600 p-2 text-base font-black text-blue-900 dark:text-blue-100 shadow-[-1px_0_0_0_rgba(0,0,0,0.1)]">
+                {meals.reduce((sum, m) => sum + (Number(m.amount) || 0), 0) ||
+                  "-"}
+              </td>
             </tr>
           </tfoot>
         </table>
