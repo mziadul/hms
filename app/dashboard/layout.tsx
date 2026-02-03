@@ -53,7 +53,7 @@ export default function DashboardLayout({ children }: Props) {
       isAdminOnly: true,
       subMenu: [{ label: "Bill Generation", path: "/dashboard/generate-bill" }],
     },
-    { label: "Reset Password", icon: "🍲", path: "/dashboard/reset-password" },
+    { label: "Reset Password", icon: "🔑", path: "/dashboard/reset-password" },
   ];
 
   useEffect(() => {
