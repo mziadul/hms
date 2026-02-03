@@ -75,6 +75,23 @@ export default function MonthlyBillForm() {
   >({});
   const [bazarSlots, setBazarSlots] = useState<BazarSlot[]>([]);
 
+  // --- NEW STATE FOR EMAIL SELECTION ---
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+
+  const toggleUserSelection = (id: string) => {
+    setSelectedUserIds((prev) =>
+      prev.includes(id) ? prev.filter((uid) => uid !== id) : [...prev, id],
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedUserIds.length === summaryData.userStats.length) {
+      setSelectedUserIds([]);
+    } else {
+      setSelectedUserIds(summaryData.userStats.map((u) => String(u.id)));
+    }
+  };
+
   // Authorization and Date Initialization
   useEffect(() => {
     const info = localStorage.getItem("userInfo");
@@ -407,75 +424,97 @@ export default function MonthlyBillForm() {
     );
 
   const sendSummaryEmail = async () => {
-    if (!summaryData || users.length === 0) {
-      return alert("No data available to send.");
+    if (selectedUserIds.length === 0) {
+      return alert("Please select members to notify.");
     }
 
+    const confirmSend = confirm(
+      `Send detailed bills to ${selectedUserIds.length} members?`,
+    );
+    if (!confirmSend) return;
+
     setLoading(true);
-    const monthName = months.find(m => m.value === selectedMonth)?.name || "Summary";
-    const subject = `Monthly Bill Statement: ${monthName} ${selectedYear}`;
+    const monthName =
+      months.find((m) => m.value === selectedMonth)?.name || "Summary";
+    const subject = `Detailed Bill Statement: ${monthName} ${selectedYear}`;
 
-    // 1. GLOBAL SECTION
-    let text = `--- MONTHLY BILL SUMMARY: ${monthName?.toUpperCase()} ${selectedYear} ---\n`;
-    text += `Total Bazar    : ${bazarTotal.toFixed(2)} Tk\n`;
-    text += `Total Meals    : ${summaryData.totalMeals.toFixed(1)}\n`;
-    text += `Global Rate    : ${summaryData.globalMealRate.toFixed(2)} Tk/meal\n`;
-    text += `============================================================\n\n`;
+    // We loop through selected users to build a personalized summary for the GAS payload
+    // Note: We send the general data and let GAS handle the personal greeting per ID
 
-    // 2. MEMBER WISE DETAILED BREAKDOWN
-    text += `MEMBER WISE BREAKDOWN:\n`;
-    
-    summaryData.userStats.forEach(u => {
-      const userIdStr = String(u.id);
-      const userAmounts = amounts[userIdStr] || {};
-      
-      text += `------------------------------------------------------------\n`;
-      text += `NAME: ${u.name.toUpperCase()}\n`;
-      
-      // Slot & Bazar Data
-      if (u.hasSlot) {
-        text += `> Bazar Management Slot: ${u.slotRange}\n`;
-        text += `> Meals in your Slot   : ${u.mealsInSlot.toFixed(1)}\n`;
-        text += `> Slot Meal Rate       : ${u.slotMealRate.toFixed(2)} Tk\n`;
-      }
-      text += `Bazar Paid             : ${u.bazarPaid.toFixed(2)} Tk\n`;
-      text += `Total Meals Taken      : ${u.userTotalMeals.toFixed(1)}\n`;
-      
-      text += `\nCOST BREAKDOWN:\n`;
-      
-      // Dynamic Cost Heads (Rent, Maid, Internet, etc.)
-      costHeads.forEach(head => {
+    let globalHeader = `--- MONTHLY BILL STATEMENT: ${monthName?.toUpperCase()} ${selectedYear} ---\n`;
+    globalHeader += `Total Group Bazar : ${bazarTotal.toFixed(2)} Tk\n`;
+    globalHeader += `Total Group Meals : ${summaryData.totalMeals.toFixed(1)}\n`;
+    globalHeader += `Global Meal Rate  : ${summaryData.globalMealRate.toFixed(2)} Tk\n`;
+    globalHeader += `============================================================\n\n`;
+
+    // We will build a 'personalData' object to send to GAS so it can send unique emails
+    // Or, if your GAS 'sendBulkNotifications' only takes one message,
+    // we can provide a structured template here.
+
+    const selectedDetails = selectedUserIds.map((id) => {
+      const user = summaryData.userStats.find((u) => String(u.id) === id);
+      const userAmounts = amounts[id] || {};
+      const pTotal = userTotal(id);
+
+      let personalMsg = `BILL DETAILS FOR: ${user?.name.toUpperCase()}\n`;
+      personalMsg += `------------------------------------------------------------\n`;
+
+      // 1. Static Bills (House Rent, Internet, Electricity, etc.)
+      personalMsg += `FIXED COSTS:\n`;
+      costHeads.forEach((head) => {
         const amt = userAmounts[head.id] || 0;
-        text += `- ${head.name.padEnd(15)}: ${amt.toFixed(2)} Tk\n`;
+        personalMsg += `- ${head.name.padEnd(18)}: ${amt.toFixed(2)} Tk\n`;
       });
 
-      // Meal Cost
-      const mCost = userAmounts['meal'] || 0;
-      text += `- ${"Meal Cost".padEnd(15)}: ${mCost.toFixed(2)} Tk\n`;
+      // 2. Meal & Bazar Breakdown
+      personalMsg += `\nMEAL & BAZAR SUMMARY:\n`;
+      personalMsg += `- Total Meals Taken : ${user?.userTotalMeals.toFixed(1)}\n`;
+      personalMsg += `- Meal Cost (@Rate) : ${user?.mealCost.toFixed(2)} Tk\n`;
 
-      // Grand Total for this user
-      const pTotal = userTotal(userIdStr);
-      text += `\nNET PAYABLE: ${pTotal.toFixed(2)} Tk ${pTotal < 0 ? '(REFUND)' : ''}\n`;
+      if (user?.hasSlot) {
+        personalMsg += `\nMANAGER SLOT DETAILS (${user.slotRange}):\n`;
+        personalMsg += `- Meals in Slot     : ${user.mealsInSlot.toFixed(1)}\n`;
+        personalMsg += `- Slot Bazar Amount : ${user.bazarPaid.toFixed(2)} Tk\n`;
+        personalMsg += `- Slot Meal Rate    : ${user.slotMealRate.toFixed(2)} Tk\n`;
+      } else {
+        personalMsg += `- Personal Bazar Paid: ${user?.bazarPaid.toFixed(2)} Tk\n`;
+      }
+
+      personalMsg += `\n============================================================\n`;
+      personalMsg += `NET PAYABLE AMOUNT : ${pTotal.toFixed(2)} Tk ${pTotal < 0 ? "(REFUNDABLE)" : ""}\n`;
+      personalMsg += `============================================================\n\n`;
+
+      return personalMsg;
     });
 
-    text += `============================================================\n`;
-    text += `Generated on: ${new Date().toLocaleString()}\n`;
+    // Combine global header with all selected user details
+    const finalMessage = globalHeader + selectedDetails.join("\n");
 
     try {
-      await api.post(process.env.NEXT_PUBLIC_GAS_URL!, null, {
-        params: { 
-          action: "sendNotification", 
-          token, 
-          subject, 
-          message: text 
-        }
-      });
-      alert("✅ Detailed summary email sent successfully!");
-    } catch (err) { 
-      console.error(err);
-      alert("❌ Failed to send email."); 
-    } finally { 
-      setLoading(false); 
+      const payload = {
+        userIds: selectedUserIds,
+        subject: subject,
+        message: finalMessage,
+      };
+
+      const formData = new FormData();
+      formData.append("data", JSON.stringify(payload));
+
+      const res = await api.post(
+        `${process.env.NEXT_PUBLIC_GAS_URL}?action=sendBulkNotifications&token=${token}`,
+        formData,
+      );
+
+      if (res.data.success) {
+        alert(`✅ Detailed statements sent to ${res.data.sentCount} members!`);
+        setSelectedUserIds([]);
+      } else {
+        alert("❌ Error: " + res.data.error);
+      }
+    } catch (err) {
+      alert("❌ Failed to send notifications.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -538,12 +577,6 @@ export default function MonthlyBillForm() {
           Calculate Meal Cost
         </button>
       </div>
-      <button
-        onClick={sendSummaryEmail} // Link the function here
-        className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95"
-      >
-        📧 Send Summary Mail
-      </button>
       <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
         <table className="min-w-full text-center border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
@@ -694,6 +727,13 @@ export default function MonthlyBillForm() {
       </div>
 
       <div className="mt-10 mb-6">
+        <button
+          onClick={sendSummaryEmail}
+          disabled={loading || selectedUserIds.length === 0}
+          className="mb-5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+        >
+          📧 Notify Selected ({selectedUserIds.length})
+        </button>
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
           📊 Detailed Meal & Bazar Summary
         </h2>
@@ -702,7 +742,19 @@ export default function MonthlyBillForm() {
           <table className="min-w-full text-sm border-separate border-spacing-0">
             <thead className="bg-gray-50 dark:bg-gray-800 text-left sticky top-0 z-30">
               <tr>
-                <th className="sticky left-0 z-40 bg-gray-50 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[160px]">
+                {/* --- NEW CHECKBOX HEADER --- */}
+                <th className="p-3 border-b border-r border-gray-200 dark:border-gray-700 text-center w-12 sticky left-0 z-40 bg-gray-50 dark:bg-gray-800">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 cursor-pointer"
+                    onChange={toggleSelectAll}
+                    checked={
+                      selectedUserIds.length === summaryData.userStats.length &&
+                      summaryData.userStats.length > 0
+                    }
+                  />
+                </th>
+                <th className="sticky left-[48px] z-40 bg-gray-50 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[160px]">
                   Manager / User
                 </th>
                 <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[100px]">
@@ -726,63 +778,79 @@ export default function MonthlyBillForm() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-900">
-              {summaryData.userStats.map((stat, idx) => (
-                <tr
-                  key={stat.id}
-                  className="group hover:bg-blue-50/40 dark:hover:bg-blue-900/10"
-                >
-                  <td className="sticky left-0 z-20 p-3 bg-white dark:bg-gray-900 border-b border-r border-gray-100 dark:border-gray-800 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] group-hover:bg-inherit">
-                    <div className="font-bold text-gray-900 dark:text-gray-100">
-                      {stat.name}
-                    </div>
-                    {stat.hasSlot && (
-                      <div className="text-[10px] text-orange-600 font-medium">
-                        Active Slot Manager
+              {summaryData.userStats.map((stat, idx) => {
+                const isSelected = selectedUserIds.includes(String(stat.id));
+                return (
+                  <tr
+                    key={stat.id}
+                    className={`group hover:bg-blue-50/40 dark:hover:bg-blue-900/10 ${isSelected ? "bg-blue-50/30 dark:bg-blue-900/10" : ""}`}
+                  >
+                    {/* --- NEW CHECKBOX CELL --- */}
+                    <td className="p-3 text-center border-b border-r border-gray-100 dark:border-gray-800 sticky left-0 z-20 bg-inherit shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => toggleUserSelection(String(stat.id))}
+                      />
+                    </td>
+                    <td className="sticky left-[48px] z-20 p-3 bg-inherit border-b border-r border-gray-100 dark:border-gray-800 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] group-hover:bg-inherit">
+                      <div className="font-bold text-gray-900 dark:text-gray-100">
+                        {stat.name}
                       </div>
-                    )}
-                  </td>
-                  <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
-                    {stat.userTotalMeals.toFixed(1)}
-                  </td>
-                  <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
-                    {stat.slotRange ? (
-                      <span className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded text-xs">
-                        {stat.slotRange}
-                      </span>
-                    ) : (
-                      <span className="opacity-30">—</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-center font-semibold border-b border-gray-100 dark:border-gray-800">
-                    {stat.mealsInSlot > 0 ? (
-                      <span className="bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
-                        {stat.mealsInSlot.toFixed(1)}
-                      </span>
-                    ) : (
-                      <span className="opacity-30">—</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-center font-semibold text-red-500 border-b border-gray-100 dark:border-gray-800">
-                    {stat.bazarPaid.toFixed(2)}
-                  </td>
-                  <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
-                    {stat.slotMealRate > 0 ? (
-                      <span className="bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-700 dark:text-blue-300">
-                        {stat.slotMealRate.toFixed(2)} /meal
-                      </span>
-                    ) : (
-                      <span className="opacity-30">—</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-right font-bold text-green-600 border-b border-gray-100 dark:border-gray-800">
-                    {stat.mealCost.toFixed(2)} Tk
-                  </td>
-                </tr>
-              ))}
+                      {stat.hasSlot && (
+                        <div className="text-[10px] text-orange-600 font-medium">
+                          Active Slot Manager
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
+                      {stat.userTotalMeals.toFixed(1)}
+                    </td>
+                    <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
+                      {stat.slotRange ? (
+                        <span className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded text-xs">
+                          {stat.slotRange}
+                        </span>
+                      ) : (
+                        <span className="opacity-30">—</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center font-semibold border-b border-gray-100 dark:border-gray-800">
+                      {stat.mealsInSlot > 0 ? (
+                        <span className="bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
+                          {stat.mealsInSlot.toFixed(1)}
+                        </span>
+                      ) : (
+                        <span className="opacity-30">—</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center font-semibold text-red-500 border-b border-gray-100 dark:border-gray-800">
+                      {stat.bazarPaid.toFixed(2)}
+                    </td>
+                    <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
+                      {stat.slotMealRate > 0 ? (
+                        <span className="bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-700 dark:text-blue-300">
+                          {stat.slotMealRate.toFixed(2)} /meal
+                        </span>
+                      ) : (
+                        <span className="opacity-30">—</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-right font-bold text-green-600 border-b border-gray-100 dark:border-gray-800">
+                      {stat.mealCost.toFixed(2)} Tk
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot className="bg-gray-100 dark:bg-gray-800/50 font-black sticky bottom-0 z-30">
               <tr>
-                <td className="sticky left-0 z-40 bg-gray-100 dark:bg-gray-800 p-3 border-r border-gray-200 dark:border-gray-700">
+                {/* --- ADJUSTED COLSPAN FOR FOOTER --- */}
+                <td
+                  colSpan={2}
+                  className="sticky left-0 z-40 bg-gray-100 dark:bg-gray-800 p-3 border-r border-gray-200 dark:border-gray-700"
+                >
                   GLOBAL TOTALS
                 </td>
                 <td className="p-3 text-center">
