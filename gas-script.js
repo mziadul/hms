@@ -28,6 +28,8 @@ function doPost(e) {
     case 'upsertBazarCosts': return upsertBazarCosts(e, currentUser);
     case 'upsertDateRanges': return upsertDateRanges(e, currentUser);
     case 'upsertCustomValues': return upsertCustomValues(e);
+    case 'sendBulkNotifications': return sendBulkNotifications(e);
+    case 'updateSelfPassword': return updateSelfPassword(e, currentUser);
     default: return jsonResponse({ error: 'Invalid action' });
   }
 }
@@ -62,10 +64,13 @@ function doGet(e) {
 function loginUser(e) {
   var email = e.parameter.email;
   var password = e.parameter.password;
+  var hashedPassword = hashPassword(password); // ইনপুট পাসওয়ার্ড হ্যাশ করা হচ্ছে
+  
   var data = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users').getDataRange().getValues();
   
   for (var i = 1; i < data.length; i++) {
-    if (data[i][2] == email && data[i][3] == password) {
+    // ডাটাবেজের হ্যাশ করা পাসওয়ার্ডের সাথে তুলনা
+    if (data[i][2] == email && data[i][3] == hashedPassword) {
       return jsonResponse({ 
         token: generateToken(email),
         user: { id: data[i][0], name: data[i][1], email: data[i][2], type: data[i][4] }
@@ -73,6 +78,61 @@ function loginUser(e) {
     }
   }
   return jsonResponse({ error: 'Invalid credentials' });
+}
+
+/**
+ * সাধারণ ইউজার শুধুমাত্র নিজের পাসওয়ার্ড আপডেট করতে পারবে।
+ */
+function updateSelfPassword(e, currentUser) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  
+  var payload = JSON.parse(e.parameter.data);
+  var newPassword = payload.newPassword;
+
+  if (!newPassword || newPassword.trim() === "") {
+    return jsonResponse({ error: "Password cannot be empty" });
+  }
+
+  var foundIndex = -1;
+  for (var i = 1; i < data.length; i++) {
+    // টোকেন থেকে পাওয়া currentUser.id এর সাথে শিটের ID ম্যাচ করা হচ্ছে
+    if (String(data[i][0]) === String(currentUser.id)) {
+      foundIndex = i;
+      break;
+    }
+  }
+
+  if (foundIndex > -1) {
+    // শুধুমাত্র পাসওয়ার্ড কলাম (Index 3) আপডেট হবে
+    // hashPassword ফাংশনটি আগের উত্তরের মতো থাকতে হবে
+    data[foundIndex][3] = hashPassword(newPassword); 
+    data[foundIndex][6] = new Date(); // UpdatedAt
+    data[foundIndex][7] = currentUser.name; // UpdatedBy
+
+    sheet.getRange(foundIndex + 1, 1, 1, headers.length).setValues([data[foundIndex]]);
+    return jsonResponse({ success: true, message: "Password updated successfully" });
+  }
+
+  return jsonResponse({ error: "User not found" });
+}
+
+/**
+ * পাসওয়ার্ড হ্যাশ করার ফাংশন
+ */
+function hashPassword(password) {
+  if (!password) return "";
+  var signature = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, password);
+  var hash = "";
+  for (var i = 0; i < signature.length; i++) {
+    var byte = signature[i];
+    if (byte < 0) byte += 256;
+    var byteStr = byte.toString(16);
+    if (byteStr.length == 1) byteStr = '0' + byteStr;
+    hash += byteStr;
+  }
+  return hash;
 }
 
 /**
@@ -162,7 +222,7 @@ function upsertUsers(e, currentUser) {
       
       // EFFECTIVE STORAGE: Only update password if a new one is typed
       if (userInput.password && userInput.password.trim() !== "") {
-        updatedData[existingRowIndex][3] = userInput.password;
+        updatedData[existingRowIndex][3] = hashPassword(userInput.password);
       }
       
       updatedData[existingRowIndex][4] = userInput.type;
@@ -175,7 +235,7 @@ function upsertUsers(e, currentUser) {
         lastId,
         userInput.name,
         userInput.email,
-        userInput.password, // Mandatory check is handled in TSX
+        hashPassword(userInput.password), // Mandatory check is handled in TSX
         userInput.type,
         now, 
         now, 
@@ -728,5 +788,94 @@ function upsertCustomValues(e) {
     return jsonResponse({ success: true, count: incomingItems.length });
   } catch (err) {
     return jsonResponse({ error: err.message });
+  }
+}
+
+/**
+ * ফ্রন্টেন্ড থেকে আসা মাল্টিপল ইউজার আইডি অনুযায়ী ইমেইল পাঠানো
+ */
+function sendBulkNotifications(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var userSheet = ss.getSheetByName('Users');
+    var userData = userSheet.getDataRange().getValues();
+    
+    var payload = JSON.parse(e.parameter.data || "{}");
+    var userIds = payload.userIds; 
+    var subject = payload.subject;
+    var message = payload.message; // This contains the big structured string from frontend
+
+    if (!userIds || !userIds.length) return jsonResponse({ error: "No users selected" });
+
+    var sentCount = 0;
+    var errors = [];
+
+    // 1. Send Emails
+    userIds.forEach(function(id) {
+      var foundEmail = "";
+      var userName = "";
+      for (var i = 1; i < userData.length; i++) {
+        if (String(userData[i][0]) === String(id)) {
+          userName = userData[i][1];
+          foundEmail = userData[i][2];
+          break;
+        }
+      }
+      if (foundEmail) {
+        try {
+          var body = "Hi " + userName + ",\n\n" + message;
+          GmailApp.sendEmail(foundEmail, subject, body);
+          sentCount++;
+        } catch (mailErr) {
+          errors.push("Mail Error ID " + id + ": " + mailErr.toString());
+        }
+      }
+    });
+
+    // 2. Create Archive Sheet (SnapShot)
+    try {
+      var date = new Date();
+      var sheetName = "Statement-" + date.getFullYear() + "-" + (date.getMonth() + 1);
+      var reportSheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
+      
+      reportSheet.clear(); // Clear old data if re-sending in same month
+      
+      // Split the big message string into rows for the sheet
+      var rows = message.split("\n").map(function(line) { return [line]; });
+      
+      // Write data
+      reportSheet.getRange(1, 1, rows.length, 1).setValues(rows);
+      
+      // 3. Eye-Catchy Formatting
+      reportSheet.setColumnWidth(1, 600); // Make it wide
+      reportSheet.getRange("A1").setFontWeight("bold").setFontSize(14).setBackground("#cfe2f3");
+      
+      // Highlight specific sections
+      var lastRow = reportSheet.getLastRow();
+      var fullRange = reportSheet.getRange(1, 1, lastRow, 1);
+      fullRange.setFontFamily("Courier New"); // Monospace look for alignment
+      
+      // Apply alternating colors or borders
+      for (var r = 1; r <= lastRow; r++) {
+        var cell = reportSheet.getRange(r, 1);
+        var val = cell.getValue();
+        if (val.indexOf("===") > -1) cell.setFontWeight("bold").setFontColor("#cc0000");
+        if (val.indexOf("NAME:") > -1) cell.setBackground("#f3f3f3").setFontWeight("bold");
+        if (val.indexOf("NET PAYABLE") > -1) cell.setBackground("#d9ead3").setFontWeight("bold");
+      }
+
+    } catch (sheetErr) {
+      errors.push("Sheet Archive Error: " + sheetErr.toString());
+    }
+
+    return jsonResponse({ 
+      success: true, 
+      sentCount: sentCount, 
+      archiveName: sheetName,
+      errors: errors 
+    });
+
+  } catch (err) {
+    return jsonResponse({ error: err.toString() });
   }
 }
