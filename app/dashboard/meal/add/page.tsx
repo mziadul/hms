@@ -493,6 +493,12 @@ export default function MealSheet() {
                   </th>
                 );
               })}
+              <th
+                rowSpan={2}
+                className="sticky right-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-l border-gray-200 dark:border-gray-700 p-2 min-w-[80px] font-black text-[10px] shadow-[-1px_0_0_0_rgba(0,0,0,0.1)]"
+              >
+                Day Total
+              </th>
             </tr>
             <tr className="bg-gray-50 dark:bg-gray-800 text-[10px] font-bold sticky top-[37px] z-30">
               {users.map((user) => (
@@ -508,12 +514,6 @@ export default function MealSheet() {
                   </th>
                 </React.Fragment>
               ))}
-              <th
-                rowSpan={2}
-                className="sticky right-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-l border-gray-200 dark:border-gray-700 p-2 min-w-[80px] font-black text-[10px] uppercase shadow-[-1px_0_0_0_rgba(0,0,0,0.1)]"
-              >
-                Day Total
-              </th>
             </tr>
           </thead>
 
