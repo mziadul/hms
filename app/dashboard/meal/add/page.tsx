@@ -342,12 +342,12 @@ export default function MealSheet() {
     //   return;
     // }
 
-    setSaveTrigger({
-      userId,
-      day,
-      mealType,
-      value,
-    });
+    // setSaveTrigger({
+    //   userId,
+    //   day,
+    //   mealType,
+    //   value,
+    // });
   };
 
   // Helper function to get cell value
