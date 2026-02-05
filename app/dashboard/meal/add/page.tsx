@@ -175,10 +175,7 @@ export default function MealSheet() {
       setSaveStatus((prev) => ({ ...prev, [key]: "saving" }));
 
       try {
-        const numericAmount =
-          amount === null || amount === "" || isNaN(parseFloat(amount))
-            ? 0
-            : parseFloat(amount);
+        const numericAmount = amount === "" ? 0 : parseFloat(amount);
 
         const record = {
           userId: userId,
@@ -186,7 +183,7 @@ export default function MealSheet() {
           month: selectedMonth,
           date: day,
           type: mealType.toUpperCase(),
-          amount: numericAmount,
+          amount: amount === "" ? "" : numericAmount,
         };
 
         const response = await api.post(
@@ -208,31 +205,40 @@ export default function MealSheet() {
           setMeals((prev) => {
             const existingIndex = prev.findIndex(
               (m) =>
-                m.userId === userId &&
-                m.year === selectedYear &&
-                m.month === selectedMonth &&
-                m.date === day &&
-                m.type === mealType.toUpperCase(),
+                String(m.userId).trim() === String(userId).trim() &&
+                Number(m.date) === Number(day) &&
+                Number(m.month) === Number(selectedMonth) &&
+                Number(m.year) === Number(selectedYear) &&
+                m.type.toUpperCase() === mealType.toUpperCase(),
             );
+
+            if (amount === "" || amount === null) {
+              if (existingIndex >= 0) {
+                return prev.filter((_, i) => i !== existingIndex);
+              }
+              return prev;
+            }
+
+            const numericValue = parseFloat(amount);
 
             if (existingIndex >= 0) {
               const updated = [...prev];
               updated[existingIndex] = {
                 ...updated[existingIndex],
-                amount: parseFloat(amount),
+                amount: numericValue,
               };
               return updated;
             } else {
               return [
                 ...prev,
                 {
-                  id: prev.length + 1,
-                  userId,
+                  id: Date.now(),
+                  userId: userId,
                   year: selectedYear,
                   month: selectedMonth,
                   date: day,
                   type: mealType.toUpperCase(),
-                  amount: parseFloat(amount),
+                  amount: numericValue,
                 },
               ];
             }
