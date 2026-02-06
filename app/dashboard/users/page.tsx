@@ -135,16 +135,18 @@ export default function UsersPage() {
     <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
       <Spinner isLoading={loading} message="Processing..." />
 
-      <div className="flex justify-between items-center mb-6 border-b-2 border-gray-200 dark:border-gray-700 pb-2">
+      {/* Updated header container: flex-col for mobile, flex-row for desktop */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 border-b-2 border-gray-200 dark:border-gray-700 pb-4">
         <h1 className="text-2xl font-bold uppercase tracking-wider">
           Member Directory
         </h1>
 
-        <div className="flex gap-3">
+        {/* Updated button group: flex-wrap to prevent screen overflow */}
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-4 py-2 border-2 border-gray-800 dark:border-gray-400 font-black hover:bg-gray-800 hover:text-white dark:hover:bg-gray-400 dark:hover:text-gray-900 uppercase text-xs"
+              className="w-full sm:w-auto px-4 py-2 border-2 border-gray-800 dark:border-gray-400 font-black hover:bg-gray-800 hover:text-white dark:hover:bg-gray-400 dark:hover:text-gray-900 uppercase text-xs transition-colors"
             >
               Enter Edit Mode
             </button>
@@ -152,13 +154,13 @@ export default function UsersPage() {
             <>
               <button
                 onClick={addNewRow}
-                className="px-4 py-2 bg-green-100 dark:bg-green-900/30 border-2 border-green-600 text-green-700 dark:text-green-400 font-black uppercase text-xs"
+                className="flex-1 sm:flex-none px-4 py-2 bg-green-100 dark:bg-green-900/30 border-2 border-green-600 text-green-700 dark:text-green-400 font-black uppercase text-xs whitespace-nowrap"
               >
                 + Add Member
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 border-2 border-blue-700 text-white font-black uppercase text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 border-2 border-blue-700 text-white font-black uppercase text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] whitespace-nowrap"
               >
                 Save All Changes
               </button>
@@ -167,7 +169,7 @@ export default function UsersPage() {
                   setIsEditing(false);
                   setUsers(JSON.parse(JSON.stringify(originalUsers)));
                 }}
-                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-600 font-black uppercase text-xs"
+                className="w-full sm:w-auto px-4 py-2 border-2 border-gray-300 dark:border-gray-600 font-black uppercase text-xs whitespace-nowrap"
               >
                 Cancel
               </button>

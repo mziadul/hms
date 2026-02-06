@@ -141,11 +141,12 @@ export default function CustomValuesPage() {
     <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
       <Spinner isLoading={loading} message="Processing rules..." />
 
-      <div className="flex justify-between items-center mb-6 border-b-2 border-gray-200 dark:border-gray-700 pb-2">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 border-b-2 border-gray-200 dark:border-gray-700 pb-4">
         <h1 className="text-2xl font-bold uppercase tracking-wider">
           Custom Assignments
         </h1>
-        <div className="flex gap-3">
+
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
@@ -162,13 +163,13 @@ export default function CustomValuesPage() {
                     { userId: "", costHeadId: "", amount: null },
                   ])
                 }
-                className="px-4 py-2 bg-green-100 dark:bg-green-900/30 border-2 border-green-600 text-green-700 dark:text-green-400 font-black uppercase text-xs"
+                className="flex-1 sm:flex-none px-4 py-2 bg-green-100 dark:bg-green-900/30 border-2 border-green-600 text-green-700 dark:text-green-400 font-black uppercase text-xs whitespace-nowrap"
               >
                 + Add Rule
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 border-2 border-blue-700 text-white font-black uppercase text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 border-2 border-blue-700 text-white font-black uppercase text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] whitespace-nowrap"
               >
                 Save Sync
               </button>
@@ -177,7 +178,7 @@ export default function CustomValuesPage() {
                   setIsEditing(false);
                   setItems(JSON.parse(JSON.stringify(originalItems)));
                 }}
-                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-600 font-black uppercase text-xs"
+                className="w-full sm:w-auto px-4 py-2 border-2 border-gray-300 dark:border-gray-600 font-black uppercase text-xs whitespace-nowrap"
               >
                 Cancel
               </button>
