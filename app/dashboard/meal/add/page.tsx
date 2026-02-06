@@ -447,7 +447,7 @@ export default function MealSheet() {
           className="col-span-2 md:col-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-md transition-colors disabled:opacity-50"
           disabled={loading}
         >
-          {loading ? "Loading..." : "Filter & Load Meal"}
+          {loading ? "Loading..." : "Filter Meal"}
         </button>
       </div>
 
@@ -679,6 +679,13 @@ export default function MealSheet() {
                   );
                 });
               })}
+              <td
+                rowSpan={2}
+                className="sticky right-0 z-40 bg-blue-200 dark:bg-blue-800 border-t border-l border-gray-300 dark:border-gray-600 p-2 text-base font-black text-blue-900 dark:text-blue-100 shadow-[-1px_0_0_0_rgba(0,0,0,0.1)]"
+              >
+                {meals.reduce((sum, m) => sum + (Number(m.amount) || 0), 0) ||
+                  "-"}
+              </td>
             </tr>
 
             {/* Row 2: Grand Total Per User */}
@@ -701,10 +708,6 @@ export default function MealSheet() {
                   </td>
                 );
               })}
-              <td className="sticky right-0 z-40 bg-blue-200 dark:bg-blue-800 border-t border-l border-gray-300 dark:border-gray-600 p-2 text-base font-black text-blue-900 dark:text-blue-100 shadow-[-1px_0_0_0_rgba(0,0,0,0.1)]">
-                {meals.reduce((sum, m) => sum + (Number(m.amount) || 0), 0) ||
-                  "-"}
-              </td>
             </tr>
           </tfoot>
         </table>
