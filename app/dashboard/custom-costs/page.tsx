@@ -226,7 +226,7 @@ export default function CustomValuesPage() {
                       </button>
                     )}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
+                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <select
                         className="w-full bg-white dark:bg-gray-800 border dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
@@ -250,7 +250,7 @@ export default function CustomValuesPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
+                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <select
                         className="w-full bg-white dark:bg-gray-800 border dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"

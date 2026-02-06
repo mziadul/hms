@@ -236,7 +236,7 @@ export default function CostHeadsPage() {
                   <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800 font-mono font-bold text-gray-500">
                     {c.id || "NEW"}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
+                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <input
                         className={`w-full bg-white dark:bg-gray-800 border px-2 py-1 rounded outline-none text-gray-900 dark:text-white ${!c.name && isEditing ? "border-red-400" : "dark:border-gray-600"}`}
@@ -273,7 +273,7 @@ export default function CostHeadsPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 min-w-[200px]">
                     {isEditing ? (
                       <select
                         className="w-full bg-white dark:bg-gray-800 border dark:border-gray-600 px-1 py-1 rounded outline-none text-gray-900 dark:text-white"

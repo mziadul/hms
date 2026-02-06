@@ -236,7 +236,7 @@ export default function BazarCostsPage() {
                 }
                 className="px-4 py-2 bg-green-600 text-white font-black uppercase text-xs"
               >
-                + Row
+                + Add Cost
               </button>
               <button
                 onClick={handleSave}
@@ -300,7 +300,7 @@ export default function BazarCostsPage() {
                   </td>
 
                   {/* User Dropdown Column */}
-                  <td className="px-6 py-4 border-r border-black/10 font-bold">
+                  <td className="px-6 py-4 min-w-[200px] border-r border-black/10 font-bold">
                     {isEditing ? (
                       <select
                         value={item.userId}
@@ -347,7 +347,7 @@ export default function BazarCostsPage() {
                     )}
                   </td>
 
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 min-w-[200px]">
                     {isEditing ? (
                       <select
                         value={item.status}

@@ -337,7 +337,7 @@ export default function DateRangesPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 min-w-[200px]">
                     {isEditing ? (
                       <select
                         value={item.userId}

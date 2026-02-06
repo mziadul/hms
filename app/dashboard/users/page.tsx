@@ -230,7 +230,7 @@ export default function UsersPage() {
                   <td className="px-6 py-4 font-mono text-xs font-bold text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800">
                     {u.id || "NEW"}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
+                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <input
                         className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
@@ -243,7 +243,7 @@ export default function UsersPage() {
                       <span className="font-bold">{u.name}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
+                  <td className="px-6 py-4 min-w-[300px] border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <input
                         className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
@@ -256,7 +256,7 @@ export default function UsersPage() {
                       <span>{u.email}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800">
+                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
                     {isEditing ? (
                       <input
                         type="text"
@@ -271,7 +271,7 @@ export default function UsersPage() {
                       <span className="text-gray-400 italic">********</span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 min-w-[200px]">
                     {isEditing ? (
                       <select
                         className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-1 py-1 rounded outline-none text-gray-900 dark:text-white"
