@@ -447,7 +447,7 @@ export default function MealSheet() {
           className="col-span-2 md:col-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-md transition-colors disabled:opacity-50"
           disabled={loading}
         >
-          {loading ? "Loading..." : "Filter & Load Data"}
+          {loading ? "Loading..." : "Filter & Load Meal"}
         </button>
       </div>
 
@@ -507,19 +507,28 @@ export default function MealSheet() {
               </th>
             </tr>
             <tr className="bg-gray-50 dark:bg-gray-800 text-[10px] font-bold sticky top-[37px] z-30">
-              {users.map((user) => (
-                <React.Fragment key={`sub-${user.id}`}>
-                  <th className="border-b border-r border-gray-200 dark:border-gray-700 p-1 text-blue-600 dark:text-blue-400">
-                    B
-                  </th>
-                  <th className="border-b border-r border-gray-200 dark:border-gray-700 p-1 text-green-600 dark:text-green-400">
-                    L
-                  </th>
-                  <th className="border-b border-r border-gray-200 dark:border-gray-700 p-1 text-red-600 dark:text-red-400">
-                    D
-                  </th>
-                </React.Fragment>
-              ))}
+              {users.map((user, idx) => {
+                const p = palettes[idx % 2];
+                return (
+                  <React.Fragment key={`sub-${user.id}`}>
+                    <th
+                      className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 text-blue-600 dark:text-blue-400 ${p.header}`}
+                    >
+                      B
+                    </th>
+                    <th
+                      className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 text-green-600 dark:text-green-400 ${p.header}`}
+                    >
+                      L
+                    </th>
+                    <th
+                      className={`border-b border-r border-gray-200 dark:border-gray-700 p-1 text-red-600 dark:text-red-400 ${p.header}`}
+                    >
+                      D
+                    </th>
+                  </React.Fragment>
+                );
+              })}
             </tr>
           </thead>
 
@@ -535,7 +544,7 @@ export default function MealSheet() {
                   {selectedMonth < 10 ? `0${selectedMonth}` : selectedMonth}
                 </td>
 
-                {users.map((user) => {
+                {users.map((user, idx) => {
                   const mealTypes = ["b", "l", "d"];
                   return mealTypes.map((key) => {
                     const value = getCellValue(user.id, day, key);
@@ -543,10 +552,12 @@ export default function MealSheet() {
                     const status = saveStatus[cellKey];
                     const isActive = activeCell === cellKey;
 
+                    const p = palettes[idx % 2];
+
                     return (
                       <td
                         key={cellKey}
-                        className="border-b border-r border-gray-200 dark:border-gray-700 p-0 w-12 relative"
+                        className={`border-b border-r border-gray-200 dark:border-gray-700 p-0 w-12 relative ${p.header}`}
                       >
                         <input
                           type="number"
