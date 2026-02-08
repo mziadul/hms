@@ -301,7 +301,6 @@ function getMeals(e, currentUser) {
 function addOrUpdateMealsBatch(e, currentUser) {
   var lock = LockService.getScriptLock();
   try {
-    // Wait up to 30 seconds for other processes to finish
     lock.waitLock(30000); 
     
     var records = JSON.parse(e.parameter.records || "[]");
@@ -311,11 +310,10 @@ function addOrUpdateMealsBatch(e, currentUser) {
     var updatedCount = 0, insertedCount = 0, deletedCount = 0;
 
     records.forEach(function (rec) {
-      // Step 1: Normalize identifying info
       var mealUserId = rec.userId ? String(rec.userId) : String(currentUser.id);
       var foundRowIndex = -1;
+      var existingData = null;
 
-      // Step 2: Search for existing record (Composite Key check)
       for (var i = 1; i < data.length; i++) {
         if (
           String(data[i][1]) === mealUserId && 
@@ -324,7 +322,16 @@ function addOrUpdateMealsBatch(e, currentUser) {
           data[i][4] == rec.date && 
           data[i][5] == rec.type
         ) {
-          foundRowIndex = i + 1; // Spreadsheet row (1-indexed)
+          foundRowIndex = i + 1;
+          // Capture existing data for the log before we change it
+          existingData = {
+            userId: data[i][1],
+            year: data[i][2],
+            month: data[i][3],
+            date: data[i][4],
+            type: data[i][5],
+            oldAmount: data[i][6]
+          };
           break;
         }
       }
@@ -332,53 +339,46 @@ function addOrUpdateMealsBatch(e, currentUser) {
       var isValueEmpty = (rec.amount === "" || rec.amount === null || rec.amount === undefined);
 
       if (foundRowIndex !== -1) {
-        // SCENARIO: Record exists
         if (isValueEmpty) {
-          // If empty, delete the row
+          // --- LOGGING DELETE ---
+          logMealAction("DELETE", existingData, null, currentUser);
+          
           sheet.deleteRow(foundRowIndex);
-          data = sheet.getDataRange().getValues(); // Refresh data to update row positions
+          data = sheet.getDataRange().getValues(); 
           deletedCount++;
         } else {
-          // If not empty, update the value (Column 7)
-          sheet.getRange(foundRowIndex, 7).setValue(parseFloat(rec.amount));
+          var newAmt = parseFloat(rec.amount);
+          
+          // --- LOGGING UPDATE ---
+          // Only log if the amount actually changed
+          if (existingData.oldAmount != newAmt) {
+            logMealAction("UPDATE", existingData, newAmt, currentUser);
+          }
+          
+          sheet.getRange(foundRowIndex, 7).setValue(newAmt);
           updatedCount++;
         }
       } else if (!isValueEmpty) {
-        // SCENARIO: Record doesn't exist AND user provided a value
-        
-        // Step 3: Generate Unique Integer ID
-        // We find the current maximum ID in Column 1 and add 1
+        // (Scenario: Insert - usually logs aren't required for new entries, 
+        // but the pattern is the same if you want to add one)
         var maxId = 0;
         for (var j = 1; j < data.length; j++) {
           var currentId = parseInt(data[j][0]);
-          if (!isNaN(currentId) && currentId > maxId) {
-            maxId = currentId;
-          }
+          if (!isNaN(currentId) && currentId > maxId) maxId = currentId;
         }
         var newId = maxId + 1;
 
-        // Step 4: Append new row
         sheet.appendRow([
-          newId, 
-          mealUserId, 
-          rec.year, 
-          rec.month, 
-          rec.date, 
-          rec.type, 
-          parseFloat(rec.amount)
+          newId, mealUserId, rec.year, rec.month, rec.date, rec.type, parseFloat(rec.amount)
         ]);
         
-        // Refresh data array to include the newly added row for the next record in batch
         data = sheet.getDataRange().getValues();
         insertedCount++;
       }
     });
 
     return jsonResponse({ 
-      success: true, 
-      inserted: insertedCount, 
-      updated: updatedCount, 
-      deleted: deletedCount 
+      success: true, inserted: insertedCount, updated: updatedCount, deleted: deletedCount 
     });
 
   } catch (err) {
@@ -386,6 +386,42 @@ function addOrUpdateMealsBatch(e, currentUser) {
   } finally {
     lock.releaseLock();
   }
+}
+
+function logMealAction(action, oldRecord, newAmount, currentUser) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName("MealLogs");
+  
+  // Create the log sheet if it doesn't exist
+  if (!logSheet) {
+    logSheet = ss.insertSheet("MealLogs");
+    logSheet.appendRow([
+      "Log ID", "Action", "Timestamp", "Performed By (ID)", "Performed By (Name)",
+      "Target User ID", "Year", "Month", "Date", "Meal Type", 
+      "Old Amount", "New Amount"
+    ]);
+    logSheet.getRange("1:1").setFontWeight("bold").setBackground("#f3f3f3");
+    logSheet.setFrozenRows(1);
+  }
+
+  var logId = "LOG-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
+  var timestamp = new Date();
+  
+  // Prepare the log row
+  logSheet.appendRow([
+    logId,
+    action, // "UPDATE" or "DELETE"
+    timestamp,
+    currentUser.id,
+    currentUser.name || "N/A",
+    oldRecord.userId,
+    oldRecord.year,
+    oldRecord.month,
+    oldRecord.date,
+    oldRecord.type,
+    oldRecord.oldAmount,
+    newAmount === null ? "DELETED" : newAmount
+  ]);
 }
 
 /**
