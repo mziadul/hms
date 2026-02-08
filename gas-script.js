@@ -299,41 +299,93 @@ function getMeals(e, currentUser) {
  * ব্যাচ মিল আপডেট বা ইনসার্ট
  */
 function addOrUpdateMealsBatch(e, currentUser) {
-  var records = JSON.parse(e.parameter.records || "[]");
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Meals");
-  var data = sheet.getDataRange().getValues();
-  var updatedCount = 0, insertedCount = 0;
+  var lock = LockService.getScriptLock();
+  try {
+    // Wait up to 30 seconds for other processes to finish
+    lock.waitLock(30000); 
+    
+    var records = JSON.parse(e.parameter.records || "[]");
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Meals");
+    var data = sheet.getDataRange().getValues();
+    
+    var updatedCount = 0, insertedCount = 0, deletedCount = 0;
 
-  records.forEach(function (rec) {
-    // রিকোয়েস্ট থেকে আসা userId সরাসরি ব্যবহার করা হচ্ছে
-    // যদি রিকোয়েস্টে userId না থাকে তবেই কেবল বর্তমান ইউজারের id ব্যবহার হবে
-    var mealUserId = rec.userId ? String(rec.userId) : String(currentUser.id);
-    var found = false;
+    records.forEach(function (rec) {
+      // Step 1: Normalize identifying info
+      var mealUserId = rec.userId ? String(rec.userId) : String(currentUser.id);
+      var foundRowIndex = -1;
 
-    for (var i = 1; i < data.length; i++) {
-      // টাইপ সেফ কম্পারিজন (String)
-      if (
-        String(data[i][1]) === mealUserId && 
-        data[i][2] == rec.year && 
-        data[i][3] == rec.month && 
-        data[i][4] == rec.date && 
-        data[i][5] == rec.type
-      ) {
-        sheet.getRange(i + 1, 7).setValue(parseFloat(rec.amount));
-        updatedCount++;
-        found = true;
-        break;
+      // Step 2: Search for existing record (Composite Key check)
+      for (var i = 1; i < data.length; i++) {
+        if (
+          String(data[i][1]) === mealUserId && 
+          data[i][2] == rec.year && 
+          data[i][3] == rec.month && 
+          data[i][4] == rec.date && 
+          data[i][5] == rec.type
+        ) {
+          foundRowIndex = i + 1; // Spreadsheet row (1-indexed)
+          break;
+        }
       }
-    }
 
-    if (!found) {
-      // রেকর্ড না থাকলে নতুন এন্ট্রি
-      sheet.appendRow([data.length + insertedCount, mealUserId, rec.year, rec.month, rec.date, rec.type, parseFloat(rec.amount)]);
-      insertedCount++;
-    }
-  });
+      var isValueEmpty = (rec.amount === "" || rec.amount === null || rec.amount === undefined);
 
-  return jsonResponse({ success: true, inserted: insertedCount, updated: updatedCount });
+      if (foundRowIndex !== -1) {
+        // SCENARIO: Record exists
+        if (isValueEmpty) {
+          // If empty, delete the row
+          sheet.deleteRow(foundRowIndex);
+          data = sheet.getDataRange().getValues(); // Refresh data to update row positions
+          deletedCount++;
+        } else {
+          // If not empty, update the value (Column 7)
+          sheet.getRange(foundRowIndex, 7).setValue(parseFloat(rec.amount));
+          updatedCount++;
+        }
+      } else if (!isValueEmpty) {
+        // SCENARIO: Record doesn't exist AND user provided a value
+        
+        // Step 3: Generate Unique Integer ID
+        // We find the current maximum ID in Column 1 and add 1
+        var maxId = 0;
+        for (var j = 1; j < data.length; j++) {
+          var currentId = parseInt(data[j][0]);
+          if (!isNaN(currentId) && currentId > maxId) {
+            maxId = currentId;
+          }
+        }
+        var newId = maxId + 1;
+
+        // Step 4: Append new row
+        sheet.appendRow([
+          newId, 
+          mealUserId, 
+          rec.year, 
+          rec.month, 
+          rec.date, 
+          rec.type, 
+          parseFloat(rec.amount)
+        ]);
+        
+        // Refresh data array to include the newly added row for the next record in batch
+        data = sheet.getDataRange().getValues();
+        insertedCount++;
+      }
+    });
+
+    return jsonResponse({ 
+      success: true, 
+      inserted: insertedCount, 
+      updated: updatedCount, 
+      deleted: deletedCount 
+    });
+
+  } catch (err) {
+    return jsonResponse({ success: false, error: err.toString() });
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
