@@ -314,6 +314,7 @@ function addOrUpdateMealsBatch(e, currentUser) {
       var foundRowIndex = -1;
       var existingData = null;
 
+      // ১. বিদ্যমান রেকর্ড খোঁজা এবং অরিজিনাল ID সহ ডেটা সেভ করা
       for (var i = 1; i < data.length; i++) {
         if (
           String(data[i][1]) === mealUserId && 
@@ -323,8 +324,8 @@ function addOrUpdateMealsBatch(e, currentUser) {
           data[i][5] == rec.type
         ) {
           foundRowIndex = i + 1;
-          // Capture existing data for the log before we change it
           existingData = {
+            id: data[i][0],      // অরিজিনাল Meal ID অক্ষুণ্ণ রাখা হলো
             userId: data[i][1],
             year: data[i][2],
             month: data[i][3],
@@ -339,8 +340,9 @@ function addOrUpdateMealsBatch(e, currentUser) {
       var isValueEmpty = (rec.amount === "" || rec.amount === null || rec.amount === undefined);
 
       if (foundRowIndex !== -1) {
+        // রেকর্ড পাওয়া গেছে (UPDATE বা DELETE)
         if (isValueEmpty) {
-          // --- LOGGING DELETE ---
+          // ডিলিট করার আগে লগ করা
           logMealAction("DELETE", existingData, null, currentUser);
           
           sheet.deleteRow(foundRowIndex);
@@ -349,8 +351,7 @@ function addOrUpdateMealsBatch(e, currentUser) {
         } else {
           var newAmt = parseFloat(rec.amount);
           
-          // --- LOGGING UPDATE ---
-          // Only log if the amount actually changed
+          // ভ্যালু পরিবর্তন হলেই কেবল লগ করা
           if (existingData.oldAmount != newAmt) {
             logMealAction("UPDATE", existingData, newAmt, currentUser);
           }
@@ -359,17 +360,24 @@ function addOrUpdateMealsBatch(e, currentUser) {
           updatedCount++;
         }
       } else if (!isValueEmpty) {
-        // (Scenario: Insert - usually logs aren't required for new entries, 
-        // but the pattern is the same if you want to add one)
+        // নতুন রেকর্ড ইনসার্ট করা (এর জন্য সচরাচর লগের প্রয়োজন হয় না)
         var maxId = 0;
         for (var j = 1; j < data.length; j++) {
           var currentId = parseInt(data[j][0]);
-          if (!isNaN(currentId) && currentId > maxId) maxId = currentId;
+          if (!isNaN(currentId) && currentId > maxId) {
+            maxId = currentId;
+          }
         }
         var newId = maxId + 1;
 
         sheet.appendRow([
-          newId, mealUserId, rec.year, rec.month, rec.date, rec.type, parseFloat(rec.amount)
+          newId, 
+          mealUserId, 
+          rec.year, 
+          rec.month, 
+          rec.date, 
+          rec.type, 
+          parseFloat(rec.amount)
         ]);
         
         data = sheet.getDataRange().getValues();
@@ -378,7 +386,10 @@ function addOrUpdateMealsBatch(e, currentUser) {
     });
 
     return jsonResponse({ 
-      success: true, inserted: insertedCount, updated: updatedCount, deleted: deletedCount 
+      success: true, 
+      inserted: insertedCount, 
+      updated: updatedCount, 
+      deleted: deletedCount 
     });
 
   } catch (err) {
@@ -392,12 +403,12 @@ function logMealAction(action, oldRecord, newAmount, currentUser) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var logSheet = ss.getSheetByName("MealLogs");
   
-  // Create the log sheet if it doesn't exist
+  // শিট না থাকলে তৈরি করা
   if (!logSheet) {
     logSheet = ss.insertSheet("MealLogs");
     logSheet.appendRow([
-      "Log ID", "Action", "Timestamp", "Performed By (ID)", "Performed By (Name)",
-      "Target User ID", "Year", "Month", "Date", "Meal Type", 
+      "Log ID", "Action", "Timestamp", "Performed By (Name)",
+      "Meal ID", "Target User ID", "Date Info", "Type", 
       "Old Amount", "New Amount"
     ]);
     logSheet.getRange("1:1").setFontWeight("bold").setBackground("#f3f3f3");
@@ -406,18 +417,17 @@ function logMealAction(action, oldRecord, newAmount, currentUser) {
 
   var logId = "LOG-" + Date.now() + "-" + Math.floor(Math.random() * 1000);
   var timestamp = new Date();
+  var dateStr = oldRecord.year + "-" + oldRecord.month + "-" + oldRecord.date;
   
-  // Prepare the log row
+  // লগ ডাটা ইনসার্ট করা
   logSheet.appendRow([
     logId,
-    action, // "UPDATE" or "DELETE"
+    action,
     timestamp,
-    currentUser.id,
-    currentUser.name || "N/A",
-    oldRecord.userId,
-    oldRecord.year,
-    oldRecord.month,
-    oldRecord.date,
+    currentUser.name || ("User " + currentUser.id),
+    oldRecord.id,         // Meals শিটের অরিজিনাল ID কলাম
+    oldRecord.userId,     // কার মিল পরিবর্তন করা হয়েছে
+    dateStr,
     oldRecord.type,
     oldRecord.oldAmount,
     newAmount === null ? "DELETED" : newAmount
