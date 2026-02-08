@@ -298,6 +298,9 @@ function getMeals(e, currentUser) {
 /**
  * ব্যাচ মিল আপডেট বা ইনসার্ট
  */
+/**
+ * ব্যাচ মিল আপডেট বা ইনসার্ট (With Create, Update, and Delete Logging)
+ */
 function addOrUpdateMealsBatch(e, currentUser) {
   var lock = LockService.getScriptLock();
   try {
@@ -314,7 +317,7 @@ function addOrUpdateMealsBatch(e, currentUser) {
       var foundRowIndex = -1;
       var existingData = null;
 
-      // ১. বিদ্যমান রেকর্ড খোঁজা এবং অরিজিনাল ID সহ ডেটা সেভ করা
+      // ১. বিদ্যমান রেকর্ড খোঁজা
       for (var i = 1; i < data.length; i++) {
         if (
           String(data[i][1]) === mealUserId && 
@@ -325,7 +328,7 @@ function addOrUpdateMealsBatch(e, currentUser) {
         ) {
           foundRowIndex = i + 1;
           existingData = {
-            id: data[i][0],      // অরিজিনাল Meal ID অক্ষুণ্ণ রাখা হলো
+            id: data[i][0],
             userId: data[i][1],
             year: data[i][2],
             month: data[i][3],
@@ -340,27 +343,22 @@ function addOrUpdateMealsBatch(e, currentUser) {
       var isValueEmpty = (rec.amount === "" || rec.amount === null || rec.amount === undefined);
 
       if (foundRowIndex !== -1) {
-        // রেকর্ড পাওয়া গেছে (UPDATE বা DELETE)
+        // --- UPDATE or DELETE Logic ---
         if (isValueEmpty) {
-          // ডিলিট করার আগে লগ করা
           logMealAction("DELETE", existingData, null, currentUser);
-          
           sheet.deleteRow(foundRowIndex);
           data = sheet.getDataRange().getValues(); 
           deletedCount++;
         } else {
           var newAmt = parseFloat(rec.amount);
-          
-          // ভ্যালু পরিবর্তন হলেই কেবল লগ করা
           if (existingData.oldAmount != newAmt) {
             logMealAction("UPDATE", existingData, newAmt, currentUser);
           }
-          
           sheet.getRange(foundRowIndex, 7).setValue(newAmt);
           updatedCount++;
         }
       } else if (!isValueEmpty) {
-        // নতুন রেকর্ড ইনসার্ট করা (এর জন্য সচরাচর লগের প্রয়োজন হয় না)
+        // --- CREATE Logic ---
         var maxId = 0;
         for (var j = 1; j < data.length; j++) {
           var currentId = parseInt(data[j][0]);
@@ -369,7 +367,9 @@ function addOrUpdateMealsBatch(e, currentUser) {
           }
         }
         var newId = maxId + 1;
+        var newAmount = parseFloat(rec.amount);
 
+        // Append to sheet
         sheet.appendRow([
           newId, 
           mealUserId, 
@@ -377,9 +377,20 @@ function addOrUpdateMealsBatch(e, currentUser) {
           rec.month, 
           rec.date, 
           rec.type, 
-          parseFloat(rec.amount)
+          newAmount
         ]);
         
+        // Log the creation
+        logMealAction("CREATE", {
+          id: newId,
+          userId: mealUserId,
+          year: rec.year,
+          month: rec.month,
+          date: rec.date,
+          type: rec.type,
+          oldAmount: 0 // No previous amount for new records
+        }, newAmount, currentUser);
+
         data = sheet.getDataRange().getValues();
         insertedCount++;
       }
