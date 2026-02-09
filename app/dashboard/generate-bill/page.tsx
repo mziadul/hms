@@ -436,65 +436,38 @@ export default function MonthlyBillForm() {
     setLoading(true);
     const monthName =
       months.find((m) => m.value === selectedMonth)?.name || "Summary";
-    const subject = `Detailed Bill Statement: ${monthName} ${selectedYear}`;
+    const subject = `Bill Statement: ${monthName} ${selectedYear}`;
 
-    // We loop through selected users to build a personalized summary for the GAS payload
-    // Note: We send the general data and let GAS handle the personal greeting per ID
-
-    let globalHeader = `--- MONTHLY BILL STATEMENT: ${monthName?.toUpperCase()} ${selectedYear} ---\n`;
-    globalHeader += `Total Group Bazar : ${bazarTotal.toFixed(2)} Tk\n`;
-    globalHeader += `Total Group Meals : ${summaryData.totalMeals.toFixed(1)}\n`;
-    globalHeader += `Global Meal Rate  : ${summaryData.globalMealRate.toFixed(2)} Tk\n`;
-    globalHeader += `============================================================\n\n`;
-
-    // We will build a 'personalData' object to send to GAS so it can send unique emails
-    // Or, if your GAS 'sendBulkNotifications' only takes one message,
-    // we can provide a structured template here.
-
-    const selectedDetails = selectedUserIds.map((id) => {
+    // GAS এ পাঠানোর জন্য আমরা একটি Array of Objects তৈরি করছি
+    const billData = selectedUserIds.map((id) => {
       const user = summaryData.userStats.find((u) => String(u.id) === id);
       const userAmounts = amounts[id] || {};
       const pTotal = userTotal(id);
 
-      let personalMsg = `BILL DETAILS FOR: ${user?.name.toUpperCase()}\n`;
-      personalMsg += `------------------------------------------------------------\n`;
-
-      // 1. Static Bills (House Rent, Internet, Electricity, etc.)
-      personalMsg += `FIXED COSTS:\n`;
+      // ফিক্সড কস্ট বা অন্যান্য খরচগুলো অবজেক্ট হিসেবে নিচ্ছি
+      const fixedCosts: Record<string, number> = {};
       costHeads.forEach((head) => {
-        const amt = userAmounts[head.id] || 0;
-        personalMsg += `- ${head.name.padEnd(18)}: ${amt.toFixed(2)} Tk\n`;
+        fixedCosts[head.name] = userAmounts[head.id] || 0;
       });
 
-      // 2. Meal & Bazar Breakdown
-      personalMsg += `\nMEAL & BAZAR SUMMARY:\n`;
-      personalMsg += `- Total Meals Taken : ${user?.userTotalMeals.toFixed(1)}\n`;
-      personalMsg += `- Meal Cost (@Rate) : ${user?.mealCost.toFixed(2)} Tk\n`;
-
-      if (user?.hasSlot) {
-        personalMsg += `\nMANAGER SLOT DETAILS (${user.slotRange}):\n`;
-        personalMsg += `- Meals in Slot     : ${user.mealsInSlot.toFixed(1)}\n`;
-        personalMsg += `- Slot Bazar Amount : ${user.bazarPaid.toFixed(2)} Tk\n`;
-        personalMsg += `- Slot Meal Rate    : ${user.slotMealRate.toFixed(2)} Tk\n`;
-      } else {
-        personalMsg += `- Personal Bazar Paid: ${user?.bazarPaid.toFixed(2)} Tk\n`;
-      }
-
-      personalMsg += `\n============================================================\n`;
-      personalMsg += `NET PAYABLE AMOUNT : ${pTotal.toFixed(2)} Tk ${pTotal < 0 ? "(REFUNDABLE)" : ""}\n`;
-      personalMsg += `============================================================\n\n`;
-
-      return personalMsg;
+      return {
+        userId: id,
+        userName: user?.name || "Unknown",
+        userEmail: user?.email || "",
+        fixedCosts: fixedCosts,
+        meals: user?.userTotalMeals || 0,
+        mealCost: user?.mealCost || 0,
+        bazarPaid: user?.bazarPaid || 0,
+        netPayable: pTotal,
+        month: monthName,
+        year: selectedYear,
+      };
     });
-
-    // Combine global header with all selected user details
-    const finalMessage = globalHeader + selectedDetails.join("\n");
 
     try {
       const payload = {
-        userIds: selectedUserIds,
         subject: subject,
-        message: finalMessage,
+        bills: billData, // এখন আমরা সরাসরি অবজেক্টের লিস্ট পাঠাচ্ছি
       };
 
       const formData = new FormData();
@@ -506,7 +479,7 @@ export default function MonthlyBillForm() {
       );
 
       if (res.data.success) {
-        alert(`✅ Detailed statements sent to ${res.data.sentCount} members!`);
+        alert(`✅ Statements sent and archived in tabular format!`);
         setSelectedUserIds([]);
       } else {
         alert("❌ Error: " + res.data.error);
