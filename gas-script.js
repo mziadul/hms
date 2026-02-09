@@ -52,6 +52,7 @@ function doGet(e) {
     case 'getMeals': return getMeals(e, currentUser);
     case 'getBazarSlots': return getBazarSlots(e);
     case 'getCustomValuesData': return getCustomValuesData(e);
+    case 'getMonthlyArchive': return getMonthlyArchive(e);
     default: return jsonResponse({ error: 'Invalid action' });
   }
 }
@@ -906,83 +907,158 @@ function upsertCustomValues(e) {
 function sendBulkNotifications(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var userSheet = ss.getSheetByName('Users');
-    var userData = userSheet.getDataRange().getValues();
-    
     var payload = JSON.parse(e.parameter.data || "{}");
-    var userIds = payload.userIds; 
+    var bills = payload.bills; 
     var subject = payload.subject;
-    var message = payload.message; // This contains the big structured string from frontend
 
-    if (!userIds || !userIds.length) return jsonResponse({ error: "No users selected" });
+    if (!bills || !bills.length) return jsonResponse({ error: "No data received" });
+
+    var reportSheet = ss.getSheetByName("Monthly_Archive") || ss.insertSheet("Monthly_Archive");
+
+    // ১. টেবিল হেডার তৈরি (নতুন কলামসহ)
+    if (reportSheet.getLastRow() === 0) {
+      // Paid Status এবং Paid Amount কলাম যোগ করা হয়েছে
+      var headers = ["Year", "Month", "User ID", "Name", "Meals", "Meal Cost", "Bazar Paid"];
+      if (bills[0].fixedCosts) {
+        Object.keys(bills[0].fixedCosts).forEach(function(key) {
+          headers.push(key);
+        });
+      }
+      headers.push("Net Payable", "Paid Amount", "Paid Status", "Last Updated");
+      reportSheet.appendRow(headers);
+      reportSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#cfe2f3");
+    }
 
     var sentCount = 0;
-    var errors = [];
+    var existingData = reportSheet.getDataRange().getValues();
+    var headersRow = existingData[0];
 
-    // 1. Send Emails
-    userIds.forEach(function(id) {
-      var foundEmail = "";
-      var userName = "";
-      for (var i = 1; i < userData.length; i++) {
-        if (String(userData[i][0]) === String(id)) {
-          userName = userData[i][1];
-          foundEmail = userData[i][2];
+    bills.forEach(function(bill) {
+      // ২. ইংলিশ ডেট ফরম্যাট নিশ্চিত করা (YYYY-MM-DD HH:mm:ss)
+      var now = new Date();
+      var englishDate = Utilities.formatDate(now, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd HH:mm:ss");
+
+      // ৩. পেইড স্ট্যাটাস এবং অ্যামাউন্ট (ডিফল্ট unpaid এবং ০)
+      var rowDataMap = {
+        "Year": bill.year,
+        "Month": bill.month,
+        "User ID": bill.userId,
+        "Name": bill.userName,
+        "Meals": bill.meals,
+        "Meal Cost": bill.mealCost,
+        "Bazar Paid": bill.bazarPaid,
+        "Net Payable": bill.netPayable,
+        "Paid Amount": 0,          // ডিফল্ট ০
+        "Paid Status": "unpaid",   // ডিফল্ট unpaid
+        "Last Updated": englishDate // এখানে এখন আর বাংলা আসবে না
+      };
+
+      if (bill.fixedCosts) {
+        Object.keys(bill.fixedCosts).forEach(function(key) {
+          rowDataMap[key] = bill.fixedCosts[key];
+        });
+      }
+
+      var finalRowData = headersRow.map(function(h) {
+        return rowDataMap[h] !== undefined ? rowDataMap[h] : 0;
+      });
+
+      // ৪. UPSERT লজিক
+      var rowIndex = -1;
+      for (var i = 1; i < existingData.length; i++) {
+        if (existingData[i][0] == bill.year && 
+            existingData[i][1] == bill.month && 
+            existingData[i][2] == bill.userId) {
+          rowIndex = i + 1;
           break;
         }
       }
-      if (foundEmail) {
-        try {
-          var body = "Hi " + userName + ",\n\n" + message;
-          GmailApp.sendEmail(foundEmail, subject, body);
-          sentCount++;
-        } catch (mailErr) {
-          errors.push("Mail Error ID " + id + ": " + mailErr.toString());
-        }
+
+      if (rowIndex > -1) {
+        // আপডেট করার সময় আগের Paid Amount এবং Status ধরে রাখার চেষ্টা
+        var oldAmount = existingData[rowIndex-1][headersRow.indexOf("Paid Amount")] || 0;
+        var oldStatus = existingData[rowIndex-1][headersRow.indexOf("Paid Status")] || "unpaid";
+        
+        // ম্যাপে পুরনো ভ্যালু বসানো যাতে আপডেটে হারিয়ে না যায়
+        finalRowData[headersRow.indexOf("Paid Amount")] = oldAmount;
+        finalRowData[headersRow.indexOf("Paid Status")] = oldStatus;
+        
+        reportSheet.getRange(rowIndex, 1, 1, finalRowData.length).setValues([finalRowData]);
+      } else {
+        reportSheet.appendRow(finalRowData);
+      }
+
+      // ৫. ইমেইল পাঠানো
+      var emailBody = "Hi " + bill.userName + ",\n\n" +
+                      "Statement for " + bill.month + " " + bill.year + ":\n" +
+                      "------------------------------------------\n" +
+                      "Net Payable: " + bill.netPayable.toFixed(2) + " Tk\n" +
+                      "Status: " + rowDataMap["Paid Status"].toUpperCase() + "\n" +
+                      "------------------------------------------\n" +
+                      "Please clear your dues if unpaid.";
+
+      if (bill.userEmail) {
+        GmailApp.sendEmail(bill.userEmail, subject, emailBody);
+        sentCount++;
       }
     });
-
-    // 2. Create Archive Sheet (SnapShot)
-    try {
-      var date = new Date();
-      var sheetName = "Statement-" + date.getFullYear() + "-" + (date.getMonth() + 1);
-      var reportSheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
-      
-      reportSheet.clear(); // Clear old data if re-sending in same month
-      
-      // Split the big message string into rows for the sheet
-      var rows = message.split("\n").map(function(line) { return [line]; });
-      
-      // Write data
-      reportSheet.getRange(1, 1, rows.length, 1).setValues(rows);
-      
-      // 3. Eye-Catchy Formatting
-      reportSheet.setColumnWidth(1, 600); // Make it wide
-      reportSheet.getRange("A1").setFontWeight("bold").setFontSize(14).setBackground("#cfe2f3");
-      
-      // Highlight specific sections
-      var lastRow = reportSheet.getLastRow();
-      var fullRange = reportSheet.getRange(1, 1, lastRow, 1);
-      fullRange.setFontFamily("Courier New"); // Monospace look for alignment
-      
-      // Apply alternating colors or borders
-      for (var r = 1; r <= lastRow; r++) {
-        var cell = reportSheet.getRange(r, 1);
-        var val = cell.getValue();
-        if (val.indexOf("===") > -1) cell.setFontWeight("bold").setFontColor("#cc0000");
-        if (val.indexOf("NAME:") > -1) cell.setBackground("#f3f3f3").setFontWeight("bold");
-        if (val.indexOf("NET PAYABLE") > -1) cell.setBackground("#d9ead3").setFontWeight("bold");
-      }
-
-    } catch (sheetErr) {
-      errors.push("Sheet Archive Error: " + sheetErr.toString());
-    }
 
     return jsonResponse({ 
       success: true, 
       sentCount: sentCount, 
-      archiveName: sheetName,
-      errors: errors 
+      message: "Data Upserted with English Date and Paid Status!" 
     });
+
+  } catch (err) {
+    return jsonResponse({ error: err.toString() });
+  }
+}
+
+function getMonthlyArchive(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName("Monthly_Archive");
+    
+    if (!sheet) return jsonResponse({ error: "Archive sheet not found" });
+
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0];
+    var rows = data.slice(1);
+
+    // URL প্যারামিটার থেকে ফিল্টারগুলো নেওয়া হচ্ছে
+    var filterYear = e.parameter.year; // e.g. 2024
+    var filterMonth = e.parameter.month; // e.g. January
+    var filterUserId = e.parameter.userId; // e.g. 101
+
+    var filteredData = rows.filter(function(row) {
+      var match = true;
+
+      // ১. Year ফিল্টার (যদি থাকে)
+      if (filterYear && String(row[headers.indexOf("Year")]) !== String(filterYear)) {
+        match = false;
+      }
+      // ২. Month ফিল্টার (যদি থাকে)
+      if (filterMonth && String(row[headers.indexOf("Month")]).toLowerCase() !== String(filterMonth).toLowerCase()) {
+        match = false;
+      }
+      // ৩. User ID ফিল্টার (যদি থাকে)
+      if (filterUserId && String(row[headers.indexOf("User ID")]) !== String(filterUserId)) {
+        match = false;
+      }
+
+      return match;
+    });
+
+    // ডেটাকে JSON অবজেক্ট ফরম্যাটে সাজানো
+    var result = filteredData.map(function(row) {
+      var obj = {};
+      headers.forEach(function(header, index) {
+        obj[header] = row[index];
+      });
+      return obj;
+    });
+
+    return jsonResponse(result);
 
   } catch (err) {
     return jsonResponse({ error: err.toString() });
