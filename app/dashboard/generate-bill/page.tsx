@@ -445,9 +445,9 @@ export default function MonthlyBillForm() {
       const pTotal = userTotal(id);
 
       // ফিক্সড কস্ট বা অন্যান্য খরচগুলো অবজেক্ট হিসেবে নিচ্ছি
-      const fixedCosts = {};
+      const fixedCosts: Record<string, number> = {};
       costHeads.forEach((head) => {
-        fixedCosts[head.name] = userAmounts[head.id] || 0;
+        fixedCosts[head.name] = (userAmounts[head.id] as number) || 0;
       });
 
       return {
