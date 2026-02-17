@@ -445,7 +445,7 @@ export default function MonthlyBillForm() {
       const pTotal = userTotal(id);
 
       // ফিক্সড কস্ট বা অন্যান্য খরচগুলো অবজেক্ট হিসেবে নিচ্ছি
-      const fixedCosts: Record<string, number> = {};
+      const fixedCosts = {};
       costHeads.forEach((head) => {
         fixedCosts[head.name] = userAmounts[head.id] || 0;
       });
@@ -461,12 +461,19 @@ export default function MonthlyBillForm() {
         netPayable: pTotal,
         month: monthName,
         year: selectedYear,
+        hasSlot: user?.hasSlot || false,
+        slotRange: user?.slotRange || "N/A",
+        mealsInSlot: user?.mealsInSlot || 0,
+        slotMealRate: user?.slotMealRate || 0,
       };
     });
 
     try {
       const payload = {
         subject: subject,
+        totalMonthMeals: summaryData.totalMeals,
+        totalMonthBazar: bazarTotal,
+        globalMealRate: summaryData.globalMealRate,
         bills: billData, // এখন আমরা সরাসরি অবজেক্টের লিস্ট পাঠাচ্ছি
       };
 
