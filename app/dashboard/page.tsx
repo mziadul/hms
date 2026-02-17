@@ -33,6 +33,8 @@ export default function DashboardHome() {
   const [users, setUsers] = useState<User[]>([]);
   const [archiveData, setArchiveData] = useState<ArchiveRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDuePopup, setShowDuePopup] = useState(false);
+  const [loadingDues, setLoadingDues] = useState(true);
 
   const token =
     typeof window !== "undefined" ? localStorage.getItem("userToken") : null;
@@ -114,6 +116,23 @@ export default function DashboardHome() {
     fetchDashboardData();
   }, [token]);
 
+  // ✅ ৫ তারিখ পার হলে এবং বকেয়া থাকলে পপআপ দেখানো হবে
+  useEffect(() => {
+    if (!loading && archiveData.length > 0 && users.length > 0) {
+      const currentDay = new Date().getDate();
+      if (currentDay > 5) {
+        const hasDue = archiveData.some((record) => {
+          const due = Math.round(
+            Number(record["Net Payable"]) - Number(record["Paid Amount"]),
+          );
+          return due > 0;
+        });
+        setShowDuePopup(hasDue);
+      }
+      setLoadingDues(false);
+    }
+  }, [loading, archiveData, users]);
+
   const globalSummary = useMemo(() => {
     const stats = { B: 0, L: 0, D: 0, total: 0 };
     meals.forEach((m) => {
@@ -127,9 +146,36 @@ export default function DashboardHome() {
     return stats;
   }, [meals]);
 
+  const dueUsers = useMemo(() => {
+    return archiveData
+      .map((record) => {
+        const due = Math.round(
+          Number(record["Net Payable"]) - Number(record["Paid Amount"]),
+        );
+        const user = users.find((u) => String(u.id) === String(record["User ID"]));
+        return {
+          name: user?.name || "Unknown",
+          due,
+          paid: Math.round(Number(record["Paid Amount"])),
+          total: Math.round(Number(record["Net Payable"])),
+        };
+      })
+      .filter((u) => u.due > 0);
+  }, [archiveData, users]);
+
   return (
     <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100">
-      <Spinner isLoading={loading} message="Fetching dashboard stats..." />
+      <Spinner isLoading={loading || loadingDues} message="Fetching dashboard stats..." />
+
+      {/* ✅ পপআপ মডেল */}
+      {showDuePopup && dueUsers.length > 0 && (
+        <DuePopup
+          month={previousMonthInfo.monthName}
+          year={previousMonthInfo.year}
+          dueUsers={dueUsers}
+          onClose={() => setShowDuePopup(false)}
+        />
+      )}
 
       <header className="mb-8">
         <h1 className="text-2xl font-bold">Today's Meal Overview</h1>
@@ -178,18 +224,10 @@ export default function DashboardHome() {
             <thead>
               <tr className="text-xs uppercase opacity-60 bg-gray-50 dark:bg-gray-900/40">
                 <th className="p-4 border-b dark:border-gray-700">Name</th>
-                <th className="p-4 border-b dark:border-gray-700 text-center">
-                  B
-                </th>
-                <th className="p-4 border-b dark:border-gray-700 text-center">
-                  L
-                </th>
-                <th className="p-4 border-b dark:border-gray-700 text-center">
-                  D
-                </th>
-                <th className="p-4 border-b dark:border-gray-700 text-right">
-                  Today Total
-                </th>
+                <th className="p-4 border-b dark:border-gray-700 text-center">B</th>
+                <th className="p-4 border-b dark:border-gray-700 text-center">L</th>
+                <th className="p-4 border-b dark:border-gray-700 text-center">D</th>
+                <th className="p-4 border-b dark:border-gray-700 text-right">Today Total</th>
               </tr>
             </thead>
             <tbody>
@@ -212,9 +250,9 @@ export default function DashboardHome() {
                 );
                 const due = userPrevRecord
                   ? Math.round(
-                      Number(userPrevRecord["Net Payable"]) -
-                        Number(userPrevRecord["Paid Amount"]),
-                    )
+                    Number(userPrevRecord["Net Payable"]) -
+                    Number(userPrevRecord["Paid Amount"]),
+                  )
                   : 0;
 
                 return (
@@ -226,7 +264,8 @@ export default function DashboardHome() {
                       <div className="font-medium">{user.name}</div>
                       {userPrevRecord && (
                         <div
-                          className={`text-[10px] font-bold uppercase mt-0.5 ${due <= 0 ? "text-green-500" : "text-orange-500"}`}
+                          className={`text-[10px] font-bold uppercase mt-0.5 ${due <= 0 ? "text-green-500" : "text-orange-500"
+                            }`}
                         >
                           {previousMonthInfo.monthName}:{" "}
                           {due <= 0 ? "CLEARED" : `DUE: ${due} Tk`}
@@ -258,44 +297,44 @@ export default function DashboardHome() {
         (a) =>
           Math.round(Number(a["Net Payable"]) - Number(a["Paid Amount"])) > 0,
       ) && (
-        <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30 rounded-xl p-4">
-          <h3 className="text-orange-800 dark:text-orange-400 font-bold mb-3 flex items-center gap-2">
-            ⚠️ Previous Month Dues ({previousMonthInfo.monthName}{" "}
-            {previousMonthInfo.year})
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {archiveData.map((record, i) => {
-              const due = Math.round(
-                Number(record["Net Payable"]) - Number(record["Paid Amount"]),
-              );
-              if (due <= 0) return null;
+          <div className="bg-orange-50 dark:bg-orange-900/10 border border-orange-200 dark:border-orange-900/30 rounded-xl p-4">
+            <h3 className="text-orange-800 dark:text-orange-400 font-bold mb-3 flex items-center gap-2">
+              ⚠️ Previous Month Dues ({previousMonthInfo.monthName}{" "}
+              {previousMonthInfo.year})
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {archiveData.map((record, i) => {
+                const due = Math.round(
+                  Number(record["Net Payable"]) - Number(record["Paid Amount"]),
+                );
+                if (due <= 0) return null;
 
-              return (
-                <div
-                  key={i}
-                  className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-orange-100 dark:border-orange-900/20"
-                >
-                  <span className="text-xs font-bold">
-                    {
-                      users.find(
-                        (u) => String(u.id) === String(record["User ID"]),
-                      )?.name
-                    }
-                  </span>
-                  <div className="text-right">
-                    <span className="text-sm font-black text-orange-600">
-                      {due} Tk
+                return (
+                  <div
+                    key={i}
+                    className="flex justify-between items-center bg-white dark:bg-gray-800 p-3 rounded-lg shadow-sm border border-orange-100 dark:border-orange-900/20"
+                  >
+                    <span className="text-xs font-bold">
+                      {
+                        users.find(
+                          (u) => String(u.id) === String(record["User ID"]),
+                        )?.name
+                      }
                     </span>
-                    <p className="text-[9px] opacity-50">
-                      Paid: {Math.round(Number(record["Paid Amount"]))}
-                    </p>
+                    <div className="text-right">
+                      <span className="text-sm font-black text-orange-600">
+                        {due} Tk
+                      </span>
+                      <p className="text-[9px] opacity-50">
+                        Paid: {Math.round(Number(record["Paid Amount"]))}
+                      </p>
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
-      )}
+        )}
     </div>
   );
 }
@@ -317,6 +356,64 @@ function StatCard({
       <p className={`text-2xl ${isBold ? "font-black" : "font-bold"} ${color}`}>
         {value}
       </p>
+    </div>
+  );
+}
+
+// ✅ পপআপ কম্পোনেন্ট
+function DuePopup({
+  month,
+  year,
+  dueUsers,
+  onClose,
+}: {
+  month: string;
+  year: number;
+  dueUsers: { name: string; due: number; paid: number; total: number }[];
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full shadow-2xl border border-gray-200 dark:border-gray-700">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold text-orange-600 dark:text-orange-400">
+              ⚠️ Due Payment Reminder
+            </h2>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl leading-none"
+            >
+              &times;
+            </button>
+          </div>
+          <p className="text-sm opacity-70 mb-4">
+            {month} {year} - {new Date().getDate()} তারিখ পার হয়ে গেছে। নিচের সদস্যদের বকেয়া এখনও পরিশোধ করা হয়নি:
+          </p>
+          <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+            {dueUsers.map((user, idx) => (
+              <div
+                key={idx}
+                className="flex justify-between items-center bg-orange-50 dark:bg-orange-900/10 p-3 rounded-lg border border-orange-100 dark:border-orange-900/30"
+              >
+                <span className="font-semibold">{user.name}</span>
+                <div className="text-right">
+                  <span className="text-orange-600 font-black">{user.due} Tk</span>
+                  <p className="text-xs opacity-50">
+                    Paid: {user.paid} / {user.total}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={onClose}
+            className="mt-6 w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+          >
+            Close
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
