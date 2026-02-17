@@ -388,6 +388,12 @@ export default function MonthlyBillForm() {
     });
   };
 
+  const distributeAllHeads = () => {
+    costHeads.forEach((head) => {
+      distributeSmartly(head.id);
+    });
+  };
+
   const userTotal = (userId: string) => {
     const ams = amounts[userId];
     if (!ams) return 0;
@@ -549,6 +555,14 @@ export default function MonthlyBillForm() {
             {bazarTotal.toFixed(2)} Tk
           </div>
         </div>
+        <div>
+          <button
+            onClick={distributeAllHeads}
+            className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded font-bold shadow-md transition-all active:scale-95"
+          >
+            Distribute Cost
+          </button>
+        </div>
         <button
           onClick={fetchMeals}
           disabled={loading || bazarTotal <= 0}
@@ -557,12 +571,107 @@ export default function MonthlyBillForm() {
           Calculate Meal Cost
         </button>
       </div>
+
+      {/* Email notification button */}
+      <div className="mb-4 flex justify-between items-center">
+        <button
+          onClick={sendSummaryEmail}
+          disabled={loading || selectedUserIds.length === 0}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+        >
+          📧 Notify Selected ({selectedUserIds.length})
+        </button>
+      </div>
+
+      {/* New Eye-catching Summary Cards for Global Stats */}
+      <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Total Meals Card */}
+        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+          <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 h-20 w-20 -translate-x-6 translate-y-6 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-wider text-blue-100">Total Meals</p>
+                <p className="mt-2 text-4xl font-black">{summaryData.totalMeals.toFixed(1)}</p>
+              </div>
+              <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
+                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-sm text-blue-100">
+              <span className="mr-2">🍽️ Total meals consumed</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Total Bazar Card */}
+        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500 to-green-600 p-6 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+          <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 h-20 w-20 -translate-x-6 translate-y-6 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-wider text-green-100">Total Bazar</p>
+                <p className="mt-2 text-4xl font-black">{bazarTotal.toFixed(2)}</p>
+                <p className="text-sm opacity-90">Taka</p>
+              </div>
+              <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
+                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-sm text-green-100">
+              <span className="mr-2">🛒 Total grocery expenses</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Meal Rate Card */}
+        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 p-6 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+          <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 h-20 w-20 -translate-x-6 translate-y-6 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium uppercase tracking-wider text-purple-100">Meal Rate</p>
+                <p className="mt-2 text-4xl font-black">{summaryData.globalMealRate.toFixed(2)}</p>
+                <p className="text-sm opacity-90">Tk/meal</p>
+              </div>
+              <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
+                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                </svg>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-sm text-purple-100">
+              <span className="mr-2">📊 {bazarTotal.toFixed(2)} Tk / {summaryData.totalMeals.toFixed(1)} meals</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Table */}
       <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm">
         <table className="min-w-full text-center border-separate border-spacing-0">
           <thead className="sticky top-0 z-30">
             <tr className="bg-gray-100 dark:bg-gray-800">
               <th className="sticky left-0 z-40 bg-gray-100 dark:bg-gray-800 border-b border-r border-gray-200 dark:border-gray-700 p-3 text-left font-bold min-w-[160px]">
-                User Name
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 cursor-pointer"
+                    onChange={toggleSelectAll}
+                    checked={
+                      selectedUserIds.length === summaryData.userStats.length &&
+                      summaryData.userStats.length > 0
+                    }
+                  />
+                  <span>User Name</span>
+                </div>
               </th>
               {costHeads.map((h) => (
                 <th
@@ -571,12 +680,6 @@ export default function MonthlyBillForm() {
                 >
                   <div className="flex flex-col gap-1 items-center">
                     <span className="font-bold">{h.name}</span>
-                    <button
-                      onClick={() => distributeSmartly(h.id)}
-                      className="text-[9px] bg-amber-400 dark:bg-amber-600 text-black dark:text-white px-2 py-0.5 rounded font-bold uppercase"
-                    >
-                      Generate
-                    </button>
                   </div>
                 </th>
               ))}
@@ -589,24 +692,50 @@ export default function MonthlyBillForm() {
               <th className="border-b border-gray-200 dark:border-gray-700 p-3 bg-blue-600 text-white">
                 Personal Total
               </th>
+              {/* New summary columns */}
+              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[100px]">
+                User Meals
+              </th>
+              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[120px]">
+                Slot Range
+              </th>
+              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[120px]">
+                Meals in Slot
+              </th>
+              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[130px]">
+                Slot Meal Rate
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-900">
             {users.map((u, idx) => {
               const p = palettes[idx % 2];
               const total = userTotal(u.id);
+              const stat = summaryData.userStats.find(s => String(s.id) === String(u.id));
+              const isSelected = selectedUserIds.includes(String(u.id));
+
               return (
                 <tr
                   key={u.id}
-                  className={`${p.bg} hover:bg-blue-50/40 dark:hover:bg-blue-900/10`}
+                  className={`${p.bg} ${isSelected ? "bg-blue-50/30 dark:bg-blue-900/10" : ""} hover:bg-blue-50/40 dark:hover:bg-blue-900/10`}
                 >
                   <td className="sticky left-0 z-20 border-b border-r border-gray-200 dark:border-gray-700 p-3 text-left bg-inherit shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">
-                    <div className="font-bold">{u.name}</div>
-                    {userMealCounts[u.id] > 0 && (
-                      <div className="text-[10px] opacity-60">
-                        {userMealCounts[u.id].toFixed(1)} meals
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 cursor-pointer"
+                        checked={isSelected}
+                        onChange={() => toggleUserSelection(String(u.id))}
+                      />
+                      <div>
+                        <div className="font-bold">{u.name}</div>
+                        {userMealCounts[u.id] > 0 && (
+                          <div className="text-[10px] opacity-60">
+                            {userMealCounts[u.id].toFixed(1)} meals
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </td>
                   {costHeads.map((c) => (
                     <td
@@ -637,13 +766,44 @@ export default function MonthlyBillForm() {
                     {amounts[u.id]?.bazar?.toFixed(2) || "0.00"}
                   </td>
                   <td
-                    className={`border-b border-gray-200 dark:border-gray-700 p-3 text-right font-black text-base ${total >= 0 ? "text-blue-600 dark:text-blue-400" : "text-green-600"}`}
+                    className={`border-b border-r border-gray-200 dark:border-gray-700 p-3 text-right font-black text-base ${total >= 0 ? "text-blue-600 dark:text-blue-400" : "text-green-600"}`}
                   >
                     {total.toFixed(2)}
                     {total < 0 && (
                       <div className="text-[10px] font-normal opacity-70">
                         (Refund)
                       </div>
+                    )}
+                  </td>
+                  {/* New summary data cells */}
+                  <td className="border-b border-r border-gray-200 dark:border-gray-700 p-3 text-center">
+                    {stat?.userTotalMeals.toFixed(1) || "0.0"}
+                  </td>
+                  <td className="border-b border-r border-gray-200 dark:border-gray-700 p-3 text-center">
+                    {stat?.slotRange ? (
+                      <span className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded text-xs">
+                        {stat.slotRange}
+                      </span>
+                    ) : (
+                      <span className="opacity-30">—</span>
+                    )}
+                  </td>
+                  <td className="border-b border-r border-gray-200 dark:border-gray-700 p-3 text-center font-semibold">
+                    {stat?.mealsInSlot && stat.mealsInSlot > 0 ? (
+                      <span className="bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
+                        {stat.mealsInSlot.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="opacity-30">—</span>
+                    )}
+                  </td>
+                  <td className="border-b border-gray-200 dark:border-gray-700 p-3 text-center">
+                    {stat?.slotMealRate && stat.slotMealRate > 0 ? (
+                      <span className="bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-700 dark:text-blue-300">
+                        {stat.slotMealRate.toFixed(2)} /meal
+                      </span>
+                    ) : (
+                      <span className="opacity-30">—</span>
                     )}
                   </td>
                 </tr>
@@ -653,7 +813,7 @@ export default function MonthlyBillForm() {
           <tfoot className="sticky bottom-0 z-30 bg-gray-100 dark:bg-gray-800 font-bold">
             <tr>
               <td className="sticky left-0 z-40 bg-gray-100 dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-3 text-left">
-                Head Totals
+                Totals
               </td>
               {costHeads.map((c) => (
                 <td
@@ -669,13 +829,30 @@ export default function MonthlyBillForm() {
               <td className="border-r border-gray-200 dark:border-gray-700 p-3 text-right text-red-500">
                 {headTotal("bazar").toFixed(2)}
               </td>
-              <td className="p-3 text-right bg-blue-600 text-white text-lg">
+              <td className="border-r border-gray-200 dark:border-gray-700 p-3 text-right bg-blue-600 text-white">
                 {grandTotal().toFixed(2)}
+              </td>
+              {/* Footer for new summary columns */}
+              <td className="border-r border-gray-200 dark:border-gray-700 p-3 text-center">
+                {summaryData.totalMeals.toFixed(1)}
+              </td>
+              <td className="border-r border-gray-200 dark:border-gray-700 p-3 text-center">
+                —
+              </td>
+              <td className="border-r border-gray-200 dark:border-gray-700 p-3 text-center">
+                {summaryData.userStats
+                  .reduce((sum, stat) => sum + stat.mealsInSlot, 0)
+                  .toFixed(1)}
+              </td>
+              <td className="p-3 text-center">
+                Avg: {summaryData.globalMealRate.toFixed(2)}
               </td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      {/* Bottom Summary Cards */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
           <p className="text-xs font-bold uppercase opacity-60 mb-1">
@@ -703,159 +880,6 @@ export default function MonthlyBillForm() {
           >
             {grandTotal().toFixed(2)} Tk
           </p>
-        </div>
-      </div>
-
-      <div className="mt-10 mb-6">
-        <button
-          onClick={sendSummaryEmail}
-          disabled={loading || selectedUserIds.length === 0}
-          className="mb-5 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
-        >
-          📧 Notify Selected ({selectedUserIds.length})
-        </button>
-        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-          📊 Detailed Meal & Bazar Summary
-        </h2>
-
-        <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-          <table className="min-w-full text-sm border-separate border-spacing-0">
-            <thead className="bg-gray-50 dark:bg-gray-800 text-left sticky top-0 z-30">
-              <tr>
-                {/* --- NEW CHECKBOX HEADER --- */}
-                <th className="p-3 border-b border-r border-gray-200 dark:border-gray-700 text-center w-12 sticky left-0 z-40 bg-gray-50 dark:bg-gray-800">
-                  <input
-                    type="checkbox"
-                    className="w-4 h-4 cursor-pointer"
-                    onChange={toggleSelectAll}
-                    checked={
-                      selectedUserIds.length === summaryData.userStats.length &&
-                      summaryData.userStats.length > 0
-                    }
-                  />
-                </th>
-                <th className="sticky left-[48px] z-40 bg-gray-50 dark:bg-gray-800 p-3 border-b border-r border-gray-200 dark:border-gray-700 font-bold min-w-[160px]">
-                  Manager / User
-                </th>
-                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[100px]">
-                  User Meals
-                </th>
-                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[120px]">
-                  Slot Range
-                </th>
-                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[120px]">
-                  Meals in Slot
-                </th>
-                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[110px]">
-                  Bazar Paid
-                </th>
-                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-center min-w-[130px]">
-                  Slot Meal Rate
-                </th>
-                <th className="p-3 border-b border-gray-200 dark:border-gray-700 text-right min-w-[120px]">
-                  Total Meal Cost
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-900">
-              {summaryData.userStats.map((stat, idx) => {
-                const isSelected = selectedUserIds.includes(String(stat.id));
-                return (
-                  <tr
-                    key={stat.id}
-                    className={`group hover:bg-blue-50/40 dark:hover:bg-blue-900/10 ${isSelected ? "bg-blue-50/30 dark:bg-blue-900/10" : ""}`}
-                  >
-                    {/* --- NEW CHECKBOX CELL --- */}
-                    <td className="p-3 text-center border-b border-r border-gray-100 dark:border-gray-800 sticky left-0 z-20 bg-inherit shadow-[1px_0_0_0_rgba(0,0,0,0.05)]">
-                      <input
-                        type="checkbox"
-                        className="w-4 h-4 cursor-pointer"
-                        checked={isSelected}
-                        onChange={() => toggleUserSelection(String(stat.id))}
-                      />
-                    </td>
-                    <td className="sticky left-[48px] z-20 p-3 bg-inherit border-b border-r border-gray-100 dark:border-gray-800 shadow-[1px_0_0_0_rgba(0,0,0,0.05)] group-hover:bg-inherit">
-                      <div className="font-bold text-gray-900 dark:text-gray-100">
-                        {stat.name}
-                      </div>
-                      {stat.hasSlot && (
-                        <div className="text-[10px] text-orange-600 font-medium">
-                          Active Slot Manager
-                        </div>
-                      )}
-                    </td>
-                    <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
-                      {stat.userTotalMeals.toFixed(1)}
-                    </td>
-                    <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
-                      {stat.slotRange ? (
-                        <span className="bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded text-xs">
-                          {stat.slotRange}
-                        </span>
-                      ) : (
-                        <span className="opacity-30">—</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-center font-semibold border-b border-gray-100 dark:border-gray-800">
-                      {stat.mealsInSlot > 0 ? (
-                        <span className="bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded">
-                          {stat.mealsInSlot.toFixed(1)}
-                        </span>
-                      ) : (
-                        <span className="opacity-30">—</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-center font-semibold text-red-500 border-b border-gray-100 dark:border-gray-800">
-                      {stat.bazarPaid.toFixed(2)}
-                    </td>
-                    <td className="p-3 text-center border-b border-gray-100 dark:border-gray-800">
-                      {stat.slotMealRate > 0 ? (
-                        <span className="bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded text-blue-700 dark:text-blue-300">
-                          {stat.slotMealRate.toFixed(2)} /meal
-                        </span>
-                      ) : (
-                        <span className="opacity-30">—</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-right font-bold text-green-600 border-b border-gray-100 dark:border-gray-800">
-                      {stat.mealCost.toFixed(2)} Tk
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-            <tfoot className="bg-gray-100 dark:bg-gray-800/50 font-black sticky bottom-0 z-30">
-              <tr>
-                {/* --- ADJUSTED COLSPAN FOR FOOTER --- */}
-                <td
-                  colSpan={2}
-                  className="sticky left-0 z-40 bg-gray-100 dark:bg-gray-800 p-3 border-r border-gray-200 dark:border-gray-700"
-                >
-                  GLOBAL TOTALS
-                </td>
-                <td className="p-3 text-center">
-                  {summaryData.totalMeals.toFixed(1)}
-                </td>
-                <td className="p-3 text-center">—</td>
-                <td className="p-3 text-center">
-                  {summaryData.userStats
-                    .reduce((sum, stat) => sum + stat.mealsInSlot, 0)
-                    .toFixed(1)}
-                </td>
-                <td className="p-3 text-center text-red-600">
-                  {bazarTotal.toFixed(2)}
-                </td>
-                <td className="p-3 text-center">
-                  Avg: {summaryData.globalMealRate.toFixed(2)}
-                </td>
-                <td className="p-3 text-right text-green-700">
-                  {(
-                    summaryData.totalMeals * summaryData.globalMealRate
-                  ).toFixed(2)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
         </div>
       </div>
     </div>
