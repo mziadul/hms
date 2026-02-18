@@ -119,7 +119,7 @@ export default function DashboardHome() {
   useEffect(() => {
     if (!loading && archiveData.length > 0 && users.length > 0) {
       const currentDay = new Date().getDate();
-      if (currentDay > process.env.NEXT_PUBLIC_PAYMENT_ALERT_DAY) {
+      if (currentDay > Number(process.env.NEXT_PUBLIC_PAYMENT_ALERT_DAY || 10)) {
         const hasDue = archiveData.some((record) => {
           const due = Math.round(
             Number(record["Net Payable"]) - Number(record["Paid Amount"]),
