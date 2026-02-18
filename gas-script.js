@@ -28,6 +28,7 @@ function doPost(e) {
     case 'upsertBazarCosts': return upsertBazarCosts(e, currentUser);
     case 'upsertDateRanges': return upsertDateRanges(e, currentUser);
     case 'upsertCustomValues': return upsertCustomValues(e);
+    case 'syncMonthlyData': return syncMonthlyData(e);
     case 'sendBulkNotifications': return sendBulkNotifications(e);
     case 'updateSelfPassword': return updateSelfPassword(e, currentUser);
     default: return jsonResponse({ error: 'Invalid action' });
@@ -904,29 +905,51 @@ function upsertCustomValues(e) {
 /**
  * ফ্রন্টেন্ড থেকে আসা মাল্টিপল ইউজার আইডি অনুযায়ী ইমেইল পাঠানো
  */
-function sendBulkNotifications(e) {
+function syncMonthlyData(e) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var payload = JSON.parse(e.parameter.data || "{}");
     var bills = payload.bills; 
     var subject = payload.subject;
+    
+    // গ্লোবাল মেস ডেটা
+    var totalMonthMeals = payload.totalMonthMeals || 0;
+    var totalMonthBazar = payload.totalMonthBazar || 0;
+    var globalMealRate = payload.globalMealRate || 0;
 
     if (!bills || !bills.length) return jsonResponse({ error: "No data received" });
 
     var reportSheet = ss.getSheetByName("Monthly_Archive") || ss.insertSheet("Monthly_Archive");
 
-    // ১. টেবিল হেডার তৈরি (নতুন কলামসহ)
+    // ১. প্রিসাইজ এবং রিডেবল কলাম হেডার (Bazar Slot অন্তর্ভুক্ত)
     if (reportSheet.getLastRow() === 0) {
-      // Paid Status এবং Paid Amount কলাম যোগ করা হয়েছে
-      var headers = ["Year", "Month", "User ID", "Name", "Meals", "Meal Cost", "Bazar Paid"];
+      var headers = [
+        "Year", "Month", "User ID", "Name", 
+        "Total Meals (Mess)", "Total Bazar (Mess)", "Avg Rate", // গ্লোবাল সামারি
+        "Is Manager", "Bazar Slot", "Slot Meals", "Slot Rate",   // বাজার ডিউটি সামারি
+        "Personal Meals", "Meal Cost", "Bazar Paid"            // ব্যক্তিগত হিসাব
+      ];
+
+      // ডাইনামিক ফিক্সড কস্ট (House Rent, Maid, Electricity, etc.)
       if (bills[0].fixedCosts) {
         Object.keys(bills[0].fixedCosts).forEach(function(key) {
           headers.push(key);
         });
       }
-      headers.push("Net Payable", "Paid Amount", "Paid Status", "Last Updated");
+      
+      headers.push("Net Payable", "Paid Amount", "Status", "Updated At");
+      
       reportSheet.appendRow(headers);
-      reportSheet.getRange(1, 1, 1, headers.length).setFontWeight("bold").setBackground("#cfe2f3");
+      
+      // হেডার ডিজাইন
+      reportSheet.getRange(1, 1, 1, headers.length)
+                 .setFontWeight("bold")
+                 .setBackground("#1f4e78") // ডিপ ব্লু প্রফেশনাল লুক
+                 .setFontColor("white")
+                 .setHorizontalAlignment("center")
+                 .setVerticalAlignment("middle");
+      
+      reportSheet.setFrozenRows(1); // প্রথম রো ফ্রিজ করে রাখা যাতে স্ক্রল করলে হেডার দেখা যায়
     }
 
     var sentCount = 0;
@@ -934,23 +957,36 @@ function sendBulkNotifications(e) {
     var headersRow = existingData[0];
 
     bills.forEach(function(bill) {
-      // ২. ইংলিশ ডেট ফরম্যাট নিশ্চিত করা (YYYY-MM-DD HH:mm:ss)
       var now = new Date();
-      var englishDate = Utilities.formatDate(now, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd HH:mm:ss");
+      var timestamp = Utilities.formatDate(now, ss.getSpreadsheetTimeZone(), "yyyy-MM-dd HH:mm:ss");
 
-      // ৩. পেইড স্ট্যাটাস এবং অ্যামাউন্ট (ডিফল্ট unpaid এবং ০)
+      // ২. ডেটা ম্যাপিং (Bazar Slot আপডেটসহ)
       var rowDataMap = {
         "Year": bill.year,
         "Month": bill.month,
         "User ID": bill.userId,
         "Name": bill.userName,
-        "Meals": bill.meals,
+        
+        // মেস সামারি
+        "Total Meals (Mess)": totalMonthMeals,
+        "Total Bazar (Mess)": totalMonthBazar,
+        "Avg Rate": globalMealRate,
+        
+        // বাজার ম্যানেজার ডিউটি
+        "Is Manager": bill.hasSlot ? "Yes" : "No",
+        "Bazar Slot": bill.slotRange || "-",
+        "Slot Meals": bill.mealsInSlot || 0,
+        "Slot Rate": bill.slotMealRate || 0,
+        
+        // ইউজার হিসাব
+        "Personal Meals": bill.meals,
         "Meal Cost": bill.mealCost,
         "Bazar Paid": bill.bazarPaid,
+        
         "Net Payable": bill.netPayable,
-        "Paid Amount": 0,          // ডিফল্ট ০
-        "Paid Status": "unpaid",   // ডিফল্ট unpaid
-        "Last Updated": englishDate // এখানে এখন আর বাংলা আসবে না
+        "Paid Amount": 0,          
+        "Status": "Unpaid",   
+        "Updated At": timestamp
       };
 
       if (bill.fixedCosts) {
@@ -963,39 +999,58 @@ function sendBulkNotifications(e) {
         return rowDataMap[h] !== undefined ? rowDataMap[h] : 0;
       });
 
-      // ৪. UPSERT লজিক
+      // ৩. UPSERT লজিক
       var rowIndex = -1;
+      var yIdx = headersRow.indexOf("Year");
+      var mIdx = headersRow.indexOf("Month");
+      var uIdx = headersRow.indexOf("User ID");
+
       for (var i = 1; i < existingData.length; i++) {
-        if (existingData[i][0] == bill.year && 
-            existingData[i][1] == bill.month && 
-            existingData[i][2] == bill.userId) {
+        if (existingData[i][yIdx] == bill.year && 
+            existingData[i][mIdx] == bill.month && 
+            existingData[i][uIdx] == bill.userId) {
           rowIndex = i + 1;
           break;
         }
       }
 
       if (rowIndex > -1) {
-        // আপডেট করার সময় আগের Paid Amount এবং Status ধরে রাখার চেষ্টা
+        // পুরনো 'Paid Amount' এবং 'Status' প্রিজার্ভ করা
         var oldAmount = existingData[rowIndex-1][headersRow.indexOf("Paid Amount")] || 0;
-        var oldStatus = existingData[rowIndex-1][headersRow.indexOf("Paid Status")] || "unpaid";
+        var oldStatus = existingData[rowIndex-1][headersRow.indexOf("Status")] || "Unpaid";
         
-        // ম্যাপে পুরনো ভ্যালু বসানো যাতে আপডেটে হারিয়ে না যায়
         finalRowData[headersRow.indexOf("Paid Amount")] = oldAmount;
-        finalRowData[headersRow.indexOf("Paid Status")] = oldStatus;
+        finalRowData[headersRow.indexOf("Status")] = oldStatus;
         
         reportSheet.getRange(rowIndex, 1, 1, finalRowData.length).setValues([finalRowData]);
       } else {
         reportSheet.appendRow(finalRowData);
       }
 
-      // ৫. ইমেইল পাঠানো
-      var emailBody = "Hi " + bill.userName + ",\n\n" +
-                      "Statement for " + bill.month + " " + bill.year + ":\n" +
-                      "------------------------------------------\n" +
-                      "Net Payable: " + bill.netPayable.toFixed(2) + " Tk\n" +
-                      "Status: " + rowDataMap["Paid Status"].toUpperCase() + "\n" +
-                      "------------------------------------------\n" +
-                      "Please clear your dues if unpaid.";
+      // ৪. ইমেইল নোটিফিকেশন (Professional Structure)
+      var emailBody = "Dear " + bill.userName + ",\n\n" +
+                      "Your monthly bill statement for " + bill.month + " " + bill.year + " has been generated.\n\n" +
+                      "--- MESS SUMMARY ---\n" +
+                      "Avg Meal Rate: " + globalMealRate.toFixed(2) + " Tk\n" +
+                      "Total Mess Meals: " + totalMonthMeals + "\n\n" +
+                      
+                      "--- YOUR ACCOUNT ---\n" +
+                      "Personal Meals: " + bill.meals + "\n" +
+                      "Meal Cost: " + bill.mealCost.toFixed(2) + " Tk\n" +
+                      "Bazar Paid: " + bill.bazarPaid.toFixed(2) + " Tk\n";
+
+      if (bill.hasSlot) {
+        emailBody += "\n--- BAZAR MANAGER INFO ---\n" +
+                     "Bazar Slot: " + bill.slotRange + "\n" +
+                     "Total Meals in Slot: " + bill.mealsInSlot + "\n" +
+                     "Slot Rate: " + bill.slotMealRate.toFixed(2) + " Tk\n";
+      }
+
+      emailBody += "\n------------------------------------------\n" +
+                   "NET PAYABLE: " + bill.netPayable.toFixed(2) + " Tk\n" +
+                   "STATUS: " + rowDataMap["Status"].toUpperCase() + "\n" +
+                   "------------------------------------------\n\n" +
+                   "Best regards,\nMess Management System";
 
       if (bill.userEmail) {
         GmailApp.sendEmail(bill.userEmail, subject, emailBody);
@@ -1006,10 +1061,156 @@ function sendBulkNotifications(e) {
     return jsonResponse({ 
       success: true, 
       sentCount: sentCount, 
-      message: "Data Upserted with English Date and Paid Status!" 
+      message: "Data successfully archived with 'Bazar Slot' details!" 
     });
 
   } catch (err) {
+    return jsonResponse({ error: err.toString() });
+  }
+}
+
+function sendBulkNotifications(e) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var logSheet = ss.getSheetByName("Debug_Logs") || ss.insertSheet("Debug_Logs");
+  logSheet.clear(); 
+  logSheet.appendRow(["Timestamp", "Message", "Data"]);
+
+  function writeLog(msg, data) {
+    logSheet.appendRow([new Date(), msg, data || ""]);
+  }
+
+  try {
+    var reportSheet = ss.getSheetByName("Monthly_Archive");
+    var userSheet = ss.getSheetByName("Users");
+
+    if (!reportSheet || !userSheet) {
+      writeLog("Error", "Monthly_Archive ba Users sheet pawa jayni!");
+      return jsonResponse({ error: "Required sheets missing" });
+    }
+
+    var payload = JSON.parse(e.parameter.data || "{}");
+    var targetYear = payload.year;   
+    var targetMonth = payload.month; 
+    var userIdsToSend = payload.userIds; 
+    var subject = payload.subject || "মাসিক মেস বিলের বিবরণ";
+
+    // ১. Users sheet theke ID (Capital) onujayi Email map toiri kora
+    var userData = userSheet.getDataRange().getValues();
+    var userHeaders = userData[0];
+    var uIdIdx = userHeaders.indexOf("ID"); 
+    var uEmailIdx = userHeaders.indexOf("Email");
+    if (uEmailIdx === -1) uEmailIdx = userHeaders.indexOf("email");
+
+    if (uIdIdx === -1 || uEmailIdx === -1) {
+      writeLog("Error", "Users sheet-e 'ID' ba 'Email' column pawa jayni");
+      return jsonResponse({ error: "Users sheet column mismatch" });
+    }
+
+    var emailMap = {};
+    for (var i = 1; i < userData.length; i++) {
+      var idKey = String(userData[i][uIdIdx]).trim();
+      emailMap[idKey] = userData[i][uEmailIdx];
+    }
+
+    // ২. Archive sheet matching logic shoho data neya
+    var data = reportSheet.getDataRange().getValues();
+    var headers = data[0];
+    var rows = data.slice(1);
+
+    var yIdx = headers.indexOf("Year");
+    var mIdx = headers.indexOf("Month");
+    var uIdx = headers.indexOf("User ID");
+    
+    var idx = {
+      name: headers.indexOf("Name"),
+      totalBazar: headers.indexOf("Total Bazar (Mess)"),
+      totalMeals: headers.indexOf("Total Meals (Mess)"),
+      avgRate: headers.indexOf("Avg Rate"),
+      pMeals: headers.indexOf("Personal Meals"),
+      mCost: headers.indexOf("Meal Cost"),
+      bPaid: headers.indexOf("Bazar Paid"),
+      netPayable: headers.indexOf("Net Payable"),
+      status: headers.indexOf("Status"),
+      slotRange: headers.indexOf("Bazar Slot"),
+      slotMeals: headers.indexOf("Slot Meals"),
+      slotRate: headers.indexOf("Slot Rate")
+    };
+
+    // Dynamic Fixed Costs column gulo (Bazar Paid er por theke Net Payable er age porjonto)
+    var fixedCostHeaders = headers.slice(idx.bPaid + 1, idx.netPayable);
+    var sentCount = 0;
+
+    userIdsToSend.forEach(function(id) {
+      var searchId = String(id).trim();
+      var userEmail = emailMap[searchId];
+
+      if (!userEmail) {
+        writeLog("Skip", "User ID " + searchId + " er email Users sheet-e pawa jayni.");
+        return;
+      }
+
+      var userRow = rows.find(function(r) {
+        return String(r[yIdx]).trim() === String(targetYear).trim() && 
+               String(r[mIdx]).trim().toLowerCase() === String(targetMonth).trim().toLowerCase() && 
+               String(r[uIdx]).trim() === searchId;
+      });
+
+      if (userRow) {
+        // --- Full Detailed Body Start ---
+        var emailBody = "প্রিয় " + userRow[idx.name] + ",\n\n" +
+                        targetMonth + " " + targetYear + " মাসের আপনার মেস বিলের বিবরণ নিচে দেওয়া হলো:\n\n" +
+                        
+                        "--- মেসের মোট হিসাব (Global Summary) ---\n" +
+                        "মেসের মোট বাজার: " + Number(userRow[idx.totalBazar] || 0).toFixed(2) + " টাকা\n" +
+                        "মেসের মোট মিল: " + (userRow[idx.totalMeals] || 0) + "\n" +
+                        "গড় মিল রেট: " + Number(userRow[idx.avgRate] || 0).toFixed(2) + " টাকা\n\n" +
+                        
+                        "--- আপনার ব্যক্তিগত হিসাব ---\n" +
+                        "আপনার মোট মিল: " + (userRow[idx.pMeals] || 0) + "\n" +
+                        "মিল খরচ: " + Number(userRow[idx.mCost] || 0).toFixed(2) + " টাকা\n" +
+                        "বাজার জমা (Debit): " + Number(userRow[idx.bPaid] || 0).toFixed(2) + " টাকা\n";
+
+        // অন্যান্য খরচ (Fixed Costs) add kora
+        if (fixedCostHeaders.length > 0) {
+          emailBody += "\n--- অন্যান্য খরচ (Fixed Costs) ---\n";
+          fixedCostHeaders.forEach(function(h) {
+            var val = userRow[headers.indexOf(h)] || 0;
+            emailBody += h + ": " + Number(val).toFixed(2) + " টাকা\n";
+          });
+        }
+
+        // বাজার ম্যানেজারের স্লট তথ্য (jodi thake)
+        if (userRow[idx.slotRange] && userRow[idx.slotRange] !== "-" && userRow[idx.slotRange] !== "") {
+          emailBody += "\n--- বাজার ম্যানেজার তথ্য ---\n" +
+                       "আপনার স্লট: " + userRow[idx.slotRange] + "\n" +
+                       "স্লট চলাকালীন মিল: " + (userRow[idx.slotMeals] || 0) + "\n" +
+                       "স্লট রেট: " + Number(userRow[idx.slotRate] || 0).toFixed(2) + " টাকা\n";
+        }
+
+        emailBody += "\n------------------------------------------\n" +
+                     "মোট দেয় বিল (Net Payable): " + Number(userRow[idx.netPayable] || 0).toFixed(2) + " টাকা\n" +
+                     "পেমেন্ট স্ট্যাটাস: " + (userRow[idx.status] === "Paid" ? "পরিশোধিত" : "বাকি (Unpaid)") + "\n" +
+                     "------------------------------------------\n\n" +
+                     "যদি কোনো ভুল থাকে, দয়া করে ম্যানেজারের সাথে যোগাযোগ করুন।\n" +
+                     "ধন্যবাদান্তে,\nমেস ম্যানেজমেন্ট সিস্টেম";
+        // --- Full Detailed Body End ---
+
+        try {
+          GmailApp.sendEmail(userEmail, subject, emailBody);
+          sentCount++;
+          writeLog("Success", "Detailed Email sent to: " + userEmail);
+        } catch (mailErr) {
+          writeLog("Mail Error", userEmail + ": " + mailErr.toString());
+        }
+      } else {
+        writeLog("Not Found", "ID: " + searchId + " er data archive-e pawa jayni.");
+      }
+    });
+
+    return jsonResponse({ success: true, message: sentCount + " টি ইমেইল ব্রেকডাউনসহ সফলভাবে পাঠানো হয়েছে!" });
+
+  } catch (err) {
+    writeLog("Global Error", err.toString());
     return jsonResponse({ error: err.toString() });
   }
 }
@@ -1022,28 +1223,37 @@ function getMonthlyArchive(e) {
     if (!sheet) return jsonResponse({ error: "Archive sheet not found" });
 
     var data = sheet.getDataRange().getValues();
+    if (data.length < 2) return jsonResponse([]); // যদি শুধু হেডার থাকে বা শিট খালি থাকে
+
     var headers = data[0];
     var rows = data.slice(1);
 
-    // URL প্যারামিটার থেকে ফিল্টারগুলো নেওয়া হচ্ছে
-    var filterYear = e.parameter.year; // e.g. 2024
-    var filterMonth = e.parameter.month; // e.g. January
-    var filterUserId = e.parameter.userId; // e.g. 101
+    // URL প্যারামিটার থেকে ফিল্টারগুলো নেওয়া
+    var filterYear = e.parameter.year; 
+    var filterMonth = e.parameter.month; 
+    var filterUserId = e.parameter.userId;
+
+    // কলাম ইনডেক্সগুলো ডাইনামিকালি খুঁজে বের করা (যাতে নাম পরিবর্তনের কারণে কোড না ভাঙে)
+    var yearIdx = headers.indexOf("Year");
+    var monthIdx = headers.indexOf("Month");
+    var userIdIdx = headers.indexOf("User ID");
 
     var filteredData = rows.filter(function(row) {
       var match = true;
 
-      // ১. Year ফিল্টার (যদি থাকে)
-      if (filterYear && String(row[headers.indexOf("Year")]) !== String(filterYear)) {
-        match = false;
+      // ১. Year ফিল্টার
+      if (filterYear && yearIdx !== -1) {
+        if (String(row[yearIdx]) !== String(filterYear)) match = false;
       }
-      // ২. Month ফিল্টার (যদি থাকে)
-      if (filterMonth && String(row[headers.indexOf("Month")]).toLowerCase() !== String(filterMonth).toLowerCase()) {
-        match = false;
+      
+      // ২. Month ফিল্টার (Case-insensitive)
+      if (filterMonth && monthIdx !== -1) {
+        if (String(row[monthIdx]).toLowerCase() !== String(filterMonth).toLowerCase()) match = false;
       }
-      // ৩. User ID ফিল্টার (যদি থাকে)
-      if (filterUserId && String(row[headers.indexOf("User ID")]) !== String(filterUserId)) {
-        match = false;
+      
+      // ৩. User ID ফিল্টার
+      if (filterUserId && userIdIdx !== -1) {
+        if (String(row[userIdIdx]) !== String(filterUserId)) match = false;
       }
 
       return match;
@@ -1053,7 +1263,9 @@ function getMonthlyArchive(e) {
     var result = filteredData.map(function(row) {
       var obj = {};
       headers.forEach(function(header, index) {
-        obj[header] = row[index];
+        // ফিক্সড কস্ট এবং টাকার হিসাবগুলোকে Number হিসেবে পাঠানো (যদি সম্ভব হয়)
+        var val = row[index];
+        obj[header] = (typeof val === "number") ? parseFloat(val.toFixed(2)) : val;
       });
       return obj;
     });
@@ -1061,6 +1273,6 @@ function getMonthlyArchive(e) {
     return jsonResponse(result);
 
   } catch (err) {
-    return jsonResponse({ error: err.toString() });
+    return jsonResponse({ error: "Method Error: " + err.toString() });
   }
 }
