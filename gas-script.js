@@ -29,6 +29,7 @@ function doPost(e) {
     case 'upsertDateRanges': return upsertDateRanges(e, currentUser);
     case 'upsertCustomValues': return upsertCustomValues(e);
     case 'syncMonthlyData': return syncMonthlyData(e);
+    case 'updatePayment': return updatePayment(e);
     case 'sendBulkNotifications': return sendBulkNotifications(e);
     case 'updateSelfPassword': return updateSelfPassword(e, currentUser);
     default: return jsonResponse({ error: 'Invalid action' });
@@ -1274,5 +1275,86 @@ function getMonthlyArchive(e) {
 
   } catch (err) {
     return jsonResponse({ error: "Method Error: " + err.toString() });
+  }
+}
+
+function updatePayment(e) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var archiveSheet = ss.getSheetByName("Monthly_Archive");
+    var userSheet = ss.getSheetByName("Users");
+    
+    if (!archiveSheet || !userSheet) {
+      return jsonResponse({ error: "Required sheets missing!" });
+    }
+
+    // CORS হ্যান্ডলিং এর জন্য text/plain ডেটা রিসিভ করা
+    var payload = JSON.parse(e.postData.contents);
+    var targetYear = String(payload.year).trim();
+    var targetMonth = String(payload.month).trim();
+    var targetUser = String(payload.userId).trim();
+    var amountToAdd = Number(payload.amount);
+
+    var data = archiveSheet.getDataRange().getValues();
+    var headers = data[0];
+    
+    var yIdx = headers.indexOf("Year");
+    var mIdx = headers.indexOf("Month");
+    var uIdx = headers.indexOf("User ID");
+    var pAmtIdx = headers.indexOf("Paid Amount");
+    var statusIdx = headers.indexOf("Status");
+    var netIdx = headers.indexOf("Net Payable");
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][yIdx]).trim() === targetYear && 
+          String(data[i][mIdx]).trim().toLowerCase() === targetMonth.toLowerCase() && 
+          String(data[i][uIdx]).trim() === targetUser) {
+        
+        var currentPaid = Number(data[i][pAmtIdx]) || 0;
+        var netPayable = Number(data[i][netIdx]) || 0;
+        var newTotalPaid = currentPaid + amountToAdd;
+        
+        // ১. শিট আপডেট
+        archiveSheet.getRange(i + 1, pAmtIdx + 1).setValue(newTotalPaid);
+        var finalStatus = (newTotalPaid >= netPayable) ? "Paid" : "Partial";
+        if (statusIdx !== -1) archiveSheet.getRange(i + 1, statusIdx + 1).setValue(finalStatus);
+        
+        // ২. ইউজার ইমেইল খুঁজে বের করা
+        var userData = userSheet.getDataRange().getValues();
+        var userHeaders = userData[0];
+        var uMailIdx = userHeaders.indexOf("Email");
+        var uIdIdx = userHeaders.indexOf("ID");
+        var uNameIdx = userHeaders.indexOf("Name");
+        
+        var userEmail = "";
+        var userName = "Member";
+
+        for (var j = 1; j < userData.length; j++) {
+          if (String(userData[j][uIdIdx]).trim() === targetUser) {
+            userEmail = userData[j][uMailIdx];
+            userName = userData[j][uNameIdx];
+            break;
+          }
+        }
+
+        // ৩. ইমেইল পাঠানো
+        if (userEmail && userEmail.includes("@")) {
+          var subject = "Payment Received: " + targetMonth + " " + targetYear;
+          var body = "Hi " + userName + ",\n\n" +
+                     "We have received your payment of " + amountToAdd + " Tk for " + targetMonth + " " + targetYear + ".\n\n" +
+                     "Current Summary:\n" +
+                     "Total Paid: " + newTotalPaid + " Tk\n" +
+                     "Current Status: " + finalStatus + "\n" +
+                     "Remaining Due: " + (netPayable - newTotalPaid > 0 ? (netPayable - newTotalPaid) : 0) + " Tk\n\n" +
+                     "Thank you!";
+          MailApp.sendEmail(userEmail, subject, body);
+        }
+
+        return jsonResponse({ success: true, message: "Payment updated and email sent!" });
+      }
+    }
+    return jsonResponse({ error: "No matching record found!" });
+  } catch (err) {
+    return jsonResponse({ error: err.toString() });
   }
 }
