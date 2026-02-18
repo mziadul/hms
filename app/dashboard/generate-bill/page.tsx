@@ -605,24 +605,6 @@ export default function MonthlyBillForm() {
         </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-3 items-center">
-        <button
-          onClick={sendSummaryEmail}
-          disabled={loading || selectedUserIds.length === 0}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
-        >
-          📧 Notify Selected ({selectedUserIds.length})
-        </button>
-
-        <button
-          onClick={syncMonthlyData}
-          disabled={loading || summaryData.totalMeals === 0}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
-        >
-          📁 Sync to Archive
-        </button>
-      </div>
-
       {/* New Eye-catching Summary Cards for Global Stats */}
       <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Total Meals Card */}
@@ -737,6 +719,24 @@ export default function MonthlyBillForm() {
             </div>
           </div>
         </div>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-3 items-center justify-end">
+        <button
+          onClick={sendSummaryEmail}
+          disabled={loading || selectedUserIds.length === 0}
+          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+        >
+          📧 Notify Selected ({selectedUserIds.length})
+        </button>
+
+        <button
+          onClick={syncMonthlyData}
+          disabled={loading || summaryData.totalMeals === 0}
+          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+        >
+          📁 Sync to Archive
+        </button>
       </div>
 
       {/* Main Table */}
