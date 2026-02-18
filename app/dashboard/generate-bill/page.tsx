@@ -431,56 +431,22 @@ export default function MonthlyBillForm() {
 
   const sendSummaryEmail = async () => {
     if (selectedUserIds.length === 0) {
-      return alert("Please select members to notify.");
+      return alert("দয়া করে মেম্বার সিলেক্ট করুন।");
     }
 
     const confirmSend = confirm(
-      `Send detailed bills to ${selectedUserIds.length} members?`,
+      `${selectedUserIds.length} জন মেম্বারকে বিল পাঠাতে চান?`,
     );
     if (!confirmSend) return;
 
     setLoading(true);
-    const monthName =
-      months.find((m) => m.value === selectedMonth)?.name || "Summary";
-    const subject = `Bill Statement: ${monthName} ${selectedYear}`;
-
-    // GAS এ পাঠানোর জন্য আমরা একটি Array of Objects তৈরি করছি
-    const billData = selectedUserIds.map((id) => {
-      const user = summaryData.userStats.find((u) => String(u.id) === id);
-      const userAmounts = amounts[id] || {};
-      const pTotal = userTotal(id);
-
-      // ফিক্সড কস্ট বা অন্যান্য খরচগুলো অবজেক্ট হিসেবে নিচ্ছি
-      const fixedCosts: Record<string, number> = {};
-      costHeads.forEach((head) => {
-        fixedCosts[head.name] = (userAmounts[head.id] as number) || 0;
-      });
-
-      return {
-        userId: id,
-        userName: user?.name || "Unknown",
-        userEmail: user?.email || "",
-        fixedCosts: fixedCosts,
-        meals: user?.userTotalMeals || 0,
-        mealCost: user?.mealCost || 0,
-        bazarPaid: user?.bazarPaid || 0,
-        netPayable: pTotal,
-        month: monthName,
-        year: selectedYear,
-        hasSlot: user?.hasSlot || false,
-        slotRange: user?.slotRange || "N/A",
-        mealsInSlot: user?.mealsInSlot || 0,
-        slotMealRate: user?.slotMealRate || 0,
-      };
-    });
 
     try {
       const payload = {
-        subject: subject,
-        totalMonthMeals: summaryData.totalMeals,
-        totalMonthBazar: bazarTotal,
-        globalMealRate: summaryData.globalMealRate,
-        bills: billData, // এখন আমরা সরাসরি অবজেক্টের লিস্ট পাঠাচ্ছি
+        year: selectedYear,
+        month: months.find((m) => m.value === selectedMonth)?.name || "",
+        userIds: selectedUserIds,
+        subject: `বিলের বিবরণ: ${selectedMonth}/${selectedYear}`,
       };
 
       const formData = new FormData();
@@ -492,13 +458,80 @@ export default function MonthlyBillForm() {
       );
 
       if (res.data.success) {
-        alert(`✅ Statements sent and archived in tabular format!`);
+        alert(`✅ ${res.data.message}`);
         setSelectedUserIds([]);
       } else {
-        alert("❌ Error: " + res.data.error);
+        alert("❌ এরর: " + res.data.error);
       }
     } catch (err) {
-      alert("❌ Failed to send notifications.");
+      alert("❌ ইমেইল পাঠাতে ব্যর্থ হয়েছে।");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- পরিবর্তন ২: শুধুমাত্র ডেটা সেভ/আর্কাইভ করার মেথড (syncMonthlyData) ---
+  const syncMonthlyData = async () => {
+    const confirmSync = confirm(
+      "আপনি কি এই মাসের পুরো ডেটা শিটে সেভ/আর্কাইভ করতে চান?",
+    );
+    if (!confirmSync) return;
+
+    setLoading(true);
+    const monthName =
+      months.find((m) => m.value === selectedMonth)?.name || "Summary";
+
+    const billData = users.map((u) => {
+      const id = String(u.id);
+      const user = summaryData.userStats.find((s) => String(s.id) === id);
+      const userAmounts = amounts[id] || {};
+
+      const fixedCosts: Record<string, number> = {};
+      costHeads.forEach((head) => {
+        fixedCosts[head.name] = (userAmounts[head.id] as number) || 0;
+      });
+
+      return {
+        userId: id,
+        userName: u.name,
+        year: selectedYear,
+        month: monthName,
+        fixedCosts: fixedCosts,
+        meals: user?.userTotalMeals || 0,
+        mealCost: user?.mealCost || 0,
+        bazarPaid: user?.bazarPaid || 0,
+        netPayable: userTotal(id),
+        hasSlot: user?.hasSlot || false,
+        slotRange: user?.slotRange || "-",
+        mealsInSlot: user?.mealsInSlot || 0,
+        slotMealRate: user?.slotMealRate || 0,
+      };
+    });
+
+    try {
+      const payload = {
+        totalMonthMeals: summaryData.totalMeals,
+        totalMonthBazar: bazarTotal,
+        globalMealRate: summaryData.globalMealRate,
+        bills: billData,
+      };
+
+      const formData = new FormData();
+      formData.append("data", JSON.stringify(payload));
+
+      // এখানে অ্যাকশন নাম 'syncMonthlyData' ব্যবহার করা হয়েছে
+      const res = await api.post(
+        `${process.env.NEXT_PUBLIC_GAS_URL}?action=syncMonthlyData&token=${token}`,
+        formData,
+      );
+
+      if (res.data.success) {
+        alert(`✅ ${res.data.message}`);
+      } else {
+        alert("❌ এরর: " + res.data.error);
+      }
+    } catch (err) {
+      alert("❌ ডেটা সিঙ্ক করতে ব্যর্থ হয়েছে।");
     } finally {
       setLoading(false);
     }
@@ -572,14 +605,21 @@ export default function MonthlyBillForm() {
         </button>
       </div>
 
-      {/* Email notification button */}
-      <div className="mb-4 flex justify-between items-center">
+      <div className="mb-4 flex flex-wrap gap-3 items-center">
         <button
           onClick={sendSummaryEmail}
           disabled={loading || selectedUserIds.length === 0}
           className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
         >
           📧 Notify Selected ({selectedUserIds.length})
+        </button>
+
+        <button
+          onClick={syncMonthlyData}
+          disabled={loading || summaryData.totalMeals === 0}
+          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+        >
+          📁 Sync to Archive
         </button>
       </div>
 
@@ -592,12 +632,26 @@ export default function MonthlyBillForm() {
           <div className="relative z-10">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium uppercase tracking-wider text-blue-100">Total Meals</p>
-                <p className="mt-2 text-4xl font-black">{summaryData.totalMeals.toFixed(1)}</p>
+                <p className="text-sm font-medium uppercase tracking-wider text-blue-100">
+                  Total Meals
+                </p>
+                <p className="mt-2 text-4xl font-black">
+                  {summaryData.totalMeals.toFixed(1)}
+                </p>
               </div>
               <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
-                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                <svg
+                  className="h-8 w-8"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
+                  ></path>
                 </svg>
               </div>
             </div>
@@ -614,13 +668,27 @@ export default function MonthlyBillForm() {
           <div className="relative z-10">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium uppercase tracking-wider text-green-100">Total Bazar</p>
-                <p className="mt-2 text-4xl font-black">{bazarTotal.toFixed(2)}</p>
+                <p className="text-sm font-medium uppercase tracking-wider text-green-100">
+                  Total Bazar
+                </p>
+                <p className="mt-2 text-4xl font-black">
+                  {bazarTotal.toFixed(2)}
+                </p>
                 <p className="text-sm opacity-90">Taka</p>
               </div>
               <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
-                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                <svg
+                  className="h-8 w-8"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  ></path>
                 </svg>
               </div>
             </div>
@@ -637,18 +705,35 @@ export default function MonthlyBillForm() {
           <div className="relative z-10">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium uppercase tracking-wider text-purple-100">Meal Rate</p>
-                <p className="mt-2 text-4xl font-black">{summaryData.globalMealRate.toFixed(2)}</p>
+                <p className="text-sm font-medium uppercase tracking-wider text-purple-100">
+                  Meal Rate
+                </p>
+                <p className="mt-2 text-4xl font-black">
+                  {summaryData.globalMealRate.toFixed(2)}
+                </p>
                 <p className="text-sm opacity-90">Tk/meal</p>
               </div>
               <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
-                <svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                <svg
+                  className="h-8 w-8"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+                  ></path>
                 </svg>
               </div>
             </div>
             <div className="mt-4 flex items-center text-sm text-purple-100">
-              <span className="mr-2">📊 {bazarTotal.toFixed(2)} Tk / {summaryData.totalMeals.toFixed(1)} meals</span>
+              <span className="mr-2">
+                📊 {bazarTotal.toFixed(2)} Tk /{" "}
+                {summaryData.totalMeals.toFixed(1)} meals
+              </span>
             </div>
           </div>
         </div>
@@ -711,7 +796,9 @@ export default function MonthlyBillForm() {
             {users.map((u, idx) => {
               const p = palettes[idx % 2];
               const total = userTotal(u.id);
-              const stat = summaryData.userStats.find(s => String(s.id) === String(u.id));
+              const stat = summaryData.userStats.find(
+                (s) => String(s.id) === String(u.id),
+              );
               const isSelected = selectedUserIds.includes(String(u.id));
 
               return (
