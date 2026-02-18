@@ -74,7 +74,6 @@ export default function DashboardHome() {
               month: today.month,
             },
           }),
-          // আর্কাইভ এপিআই কল
           api.get(process.env.NEXT_PUBLIC_GAS_URL!, {
             params: {
               action: "getMonthlyArchive",
@@ -116,11 +115,11 @@ export default function DashboardHome() {
     fetchDashboardData();
   }, [token]);
 
-  // ✅ ৫ তারিখ পার হলে এবং বকেয়া থাকলে পপআপ দেখানো হবে
+  // ✅ বকেয়া থাকলে পপআপ দেখানো হবে
   useEffect(() => {
     if (!loading && archiveData.length > 0 && users.length > 0) {
       const currentDay = new Date().getDate();
-      if (currentDay > 5) {
+      if (currentDay > process.env.NEXT_PUBLIC_PAYMENT_ALERT_DAY) {
         const hasDue = archiveData.some((record) => {
           const due = Math.round(
             Number(record["Net Payable"]) - Number(record["Paid Amount"]),
