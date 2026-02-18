@@ -51,7 +51,10 @@ export default function DashboardLayout({ children }: Props) {
       label: "Generate Bill",
       icon: "🧾",
       isAdminOnly: true,
-      subMenu: [{ label: "Bill Generation", path: "/dashboard/generate-bill" }],
+      subMenu: [
+        { label: "Bill Generation", path: "/dashboard/generate-bill" },
+        { label: "Pay Bill", path: "/dashboard/pay-bill" },
+      ],
     },
     { label: "Reset Password", icon: "🔑", path: "/dashboard/reset-password" },
   ];
