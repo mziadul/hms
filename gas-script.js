@@ -32,6 +32,7 @@ function doPost(e) {
     case 'updatePayment': return updatePayment(e);
     case 'sendBulkNotifications': return sendBulkNotifications(e);
     case 'updateSelfPassword': return updateSelfPassword(e, currentUser);
+    case 'updateSettings': return updateSettingsData(e, currentUser);
     default: return jsonResponse({ error: 'Invalid action' });
   }
 }
@@ -55,6 +56,7 @@ function doGet(e) {
     case 'getBazarSlots': return getBazarSlots(e);
     case 'getCustomValuesData': return getCustomValuesData(e);
     case 'getMonthlyArchive': return getMonthlyArchive(e);
+    case 'getSettings': return getSettingsData();
     default: return jsonResponse({ error: 'Invalid action' });
   }
 }
@@ -1357,4 +1359,40 @@ function updatePayment(e) {
   } catch (err) {
     return jsonResponse({ error: err.toString() });
   }
+}
+
+function getSettingsData() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
+  var data = sheet.getDataRange().getValues();
+  
+  if (data.length < 1 || (data.length === 1 && data[0][0] === "")) return jsonResponse([]);
+  
+  var result = data.map(function(r) {
+    return { key: String(r[0]), value: String(r[1]) };
+  });
+  return jsonResponse(result);
+}
+
+function updateSettingsData(e, currentUser) {
+  if (!currentUser || currentUser.type !== 'admin') return jsonResponse({ error: 'Unauthorized' });
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Settings") || ss.insertSheet("Settings");
+  
+  // JSON ডাটা পার্স করা
+  var payload = JSON.parse(e.postData.contents); 
+  
+  sheet.clear(); 
+  
+  if (payload.length > 0) {
+    var rows = payload.map(function(item) {
+      // ✅ সমাধান: নাম্বারের আগে একটি সিঙ্গল কোট (') যোগ করলে গুগল শিট ওটাকে টেক্সট হিসেবে সেভ করে এবং ০ বাদ যায় না
+      var safeValue = "'" + String(item.value).trim();
+      return [item.key, safeValue];
+    });
+    
+    sheet.getRange(1, 1, rows.length, 2).setValues(rows);
+  }
+  
+  return jsonResponse({ success: true, message: "Settings updated successfully with leading zeros preserved!" });
 }
