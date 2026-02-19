@@ -47,6 +47,7 @@ export default function DashboardLayout({ children }: Props) {
       ],
     },
     { label: "Add Meal", icon: "🍲", path: "/dashboard/meal/add" },
+    { label: "Important Info", icon: "📌", path: "/dashboard/settings" },
     {
       label: "Generate Bill",
       icon: "🧾",
