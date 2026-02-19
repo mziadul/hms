@@ -103,6 +103,7 @@ export default function DashboardHome() {
         if (err.response?.status === 401) handleLogout();
       } finally {
         setLoading(false);
+        setLoadingDues(false);
       }
     };
 
