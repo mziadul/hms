@@ -31,7 +31,6 @@ export default function CostHeadsPage() {
     }
 
     const userData = JSON.parse(info);
-
     if (userData.type !== "admin") {
       router.replace("/dashboard");
       return;
@@ -74,7 +73,7 @@ export default function CostHeadsPage() {
   };
 
   const removeRow = (index: number) => {
-    if (confirm("Remove this cost head?")) {
+    if (confirm("Are you sure you want to remove this cost head?")) {
       setCostHeads(costHeads.filter((_, i) => i !== index));
     }
   };
@@ -88,18 +87,8 @@ export default function CostHeadsPage() {
         alert(`Error in Row ${i + 1}: Name is required.`);
         return;
       }
-      if (
-        item.amount === null ||
-        item.amount === undefined ||
-        isNaN(item.amount)
-      ) {
-        alert(
-          `Error in Row ${i + 1}: Amount is required and must be a number.`,
-        );
-        return;
-      }
-      if (item.amount < 0) {
-        alert(`Error in Row ${i + 1}: Amount cannot be negative.`);
+      if (item.amount === null || isNaN(item.amount)) {
+        alert(`Error in Row ${i + 1}: Valid amount is required.`);
         return;
       }
     }
@@ -134,9 +123,9 @@ export default function CostHeadsPage() {
 
       setIsEditing(false);
       fetchCostHeads();
-      alert("Data saved successfully!");
+      alert("✅ Cost heads updated successfully!");
     } catch (err) {
-      alert("Failed to save. Please check your connection.");
+      alert("❌ Failed to save. Please check your connection.");
     } finally {
       setLoading(false);
     }
@@ -147,18 +136,26 @@ export default function CostHeadsPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100">
-      <Spinner isLoading={loading} message="Processing Budget..." />
+    <div className="p-4 md:p-8 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors duration-300">
+      <Spinner isLoading={loading} message="Processing Budgeting..." />
 
-      <div className="flex justify-between items-center mb-6 border-b-2 border-gray-200 dark:border-gray-700 pb-2">
-        <h1 className="text-2xl font-bold uppercase tracking-wider">
-          Cost Heads
-        </h1>
-        <div className="flex gap-3">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
+            Cost Head Manager
+          </h1>
+          <p className="text-xs opacity-60 mt-1">
+            Define and manage fixed cost categories and budgets
+          </p>
+        </div>
+
+        {/* BUTTON GROUP PILL CONTAINER */}
+        <div className="flex flex-wrap gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl shadow-inner w-full md:w-auto">
           {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
-              className="px-4 py-2 border-2 border-gray-800 dark:border-gray-400 font-black hover:bg-gray-800 hover:text-white dark:hover:bg-gray-400 dark:hover:text-gray-900 text-xs uppercase"
+              className="w-full md:w-auto px-6 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-bold text-xs uppercase rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 hover:border-teal-500 transition-all"
             >
               Edit Mode
             </button>
@@ -166,22 +163,22 @@ export default function CostHeadsPage() {
             <>
               <button
                 onClick={addNewRow}
-                className="px-4 py-2 bg-green-100 dark:bg-green-900/30 border-2 border-green-600 text-green-700 dark:text-green-400 font-black uppercase text-xs"
+                className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-emerald-700 transition-all flex items-center justify-center gap-1"
               >
-                + Add Head
+                <span>+</span> Add Head
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 border-2 border-blue-700 text-white font-black uppercase text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]"
+                className="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
               >
-                Save Sync
+                Save
               </button>
               <button
                 onClick={() => {
                   setIsEditing(false);
                   setCostHeads(JSON.parse(JSON.stringify(originalHeads)));
                 }}
-                className="px-4 py-2 border-2 border-gray-300 dark:border-gray-600 font-black uppercase text-xs"
+                className="flex-1 md:flex-none px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold uppercase text-[10px] rounded-lg transition-all"
               >
                 Cancel
               </button>
@@ -190,114 +187,127 @@ export default function CostHeadsPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-gray-300 dark:border-gray-700 rounded-xl shadow-md">
-        <table className="min-w-full text-sm text-left border-separate border-spacing-0">
-          <thead className="bg-gray-200 dark:bg-gray-700 font-black uppercase tracking-wider text-gray-700 dark:text-gray-300">
-            <tr>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 w-16 text-center">
-                X
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700">
-                ID
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700">
-                Name
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 text-right">
-                Amount
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700">
-                Type
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-300 dark:divide-gray-700">
-            {costHeads.map((c, idx) => {
-              const isChanged =
-                isEditing &&
-                c.id &&
-                JSON.stringify(c) !==
-                  JSON.stringify(originalHeads.find((o) => o.id === c.id));
-              return (
-                <tr
-                  key={idx}
-                  className={`${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-100 dark:bg-gray-800/40"} ${isChanged ? "bg-yellow-50 dark:bg-yellow-900/10" : ""}`}
-                >
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800 text-center">
-                    {isEditing && (
-                      <button
-                        onClick={() => removeRow(idx)}
-                        className="text-red-500 font-black"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800 font-mono font-bold text-gray-500">
-                    {c.id || "NEW"}
-                  </td>
-                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
-                    {isEditing ? (
-                      <input
-                        className={`w-full bg-white dark:bg-gray-800 border px-2 py-1 rounded outline-none text-gray-900 dark:text-white ${!c.name && isEditing ? "border-red-400" : "dark:border-gray-600"}`}
-                        value={c.name}
-                        onChange={(e) =>
-                          handleInputChange(idx, "name", e.target.value)
-                        }
-                        placeholder="Required Name"
-                      />
-                    ) : (
-                      <span className="font-bold">{c.name}</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800 text-right">
-                    {isEditing ? (
-                      <input
-                        type="number"
-                        className={`w-full bg-white dark:bg-gray-800 border px-2 py-1 rounded outline-none text-right text-gray-900 dark:text-white ${c.amount === null && isEditing ? "border-red-400" : "dark:border-gray-600"}`}
-                        value={c.amount ?? ""}
-                        onChange={(e) =>
-                          handleInputChange(
-                            idx,
-                            "amount",
-                            e.target.value === ""
-                              ? null
-                              : Number(e.target.value),
-                          )
-                        }
-                        placeholder="0.00"
-                      />
-                    ) : (
-                      <span className="font-mono font-bold">
-                        {c.amount?.toLocaleString() ?? "0"} Tk
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 min-w-[200px]">
-                    {isEditing ? (
-                      <select
-                        className="w-full bg-white dark:bg-gray-800 border dark:border-gray-600 px-1 py-1 rounded outline-none text-gray-900 dark:text-white"
-                        value={c.type}
-                        onChange={(e) =>
-                          handleInputChange(idx, "type", e.target.value)
-                        }
-                      >
-                        <option value="Prepaid">Prepaid</option>
-                        <option value="Postpaid">Postpaid</option>
-                      </select>
-                    ) : (
-                      <span
-                        className={`px-2 py-1 rounded-full text-[10px] font-black uppercase ${c.type === "Prepaid" ? "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300" : "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300"}`}
-                      >
-                        {c.type}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* TABLE SECTION */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-900/50 text-[11px] uppercase tracking-widest font-black opacity-70">
+                <th className="p-5 w-16 text-center">X</th>
+                <th className="p-5">Ref ID</th>
+                <th className="p-5">Head Name</th>
+                <th className="p-5 text-right">Base Amount</th>
+                <th className="p-5 text-center">Payment Type</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {costHeads.map((c, idx) => {
+                const isChanged =
+                  isEditing &&
+                  c.id &&
+                  JSON.stringify(c) !==
+                    JSON.stringify(originalHeads.find((o) => o.id === c.id));
+                return (
+                  <tr
+                    key={idx}
+                    className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group"
+                  >
+                    <td className="p-5 text-center">
+                      {isEditing ? (
+                        <button
+                          onClick={() => removeRow(idx)}
+                          className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                        >
+                          ✕
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-700">
+                          —
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5 font-mono text-[10px] font-bold text-gray-400">
+                      {c.id || (
+                        <span className="text-emerald-500 italic">NEW</span>
+                      )}
+                    </td>
+                    <td className="p-5">
+                      {isEditing ? (
+                        <input
+                          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold transition-all"
+                          value={c.name}
+                          onChange={(e) =>
+                            handleInputChange(index, "name", e.target.value)
+                          }
+                          placeholder="e.g. Electricity Bill"
+                        />
+                      ) : (
+                        <span className="font-bold text-gray-800 dark:text-gray-100">
+                          {c.name}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5 text-right">
+                      {isEditing ? (
+                        <div className="flex justify-end">
+                          <input
+                            type="number"
+                            className="w-32 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-right text-sm font-black text-blue-600 dark:text-blue-400 transition-all"
+                            value={c.amount ?? ""}
+                            onChange={(e) =>
+                              handleInputChange(
+                                idx,
+                                "amount",
+                                e.target.value === ""
+                                  ? null
+                                  : Number(e.target.value),
+                              )
+                            }
+                            placeholder="0.00"
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-black text-blue-600 dark:text-blue-400">
+                          {c.amount?.toLocaleString() ?? "0"}{" "}
+                          <span className="text-[10px]">TK</span>
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5 text-center">
+                      {isEditing ? (
+                        <select
+                          className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-2 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs font-black transition-all"
+                          value={c.type}
+                          onChange={(e) =>
+                            handleInputChange(idx, "type", e.target.value)
+                          }
+                        >
+                          <option value="Prepaid">Prepaid</option>
+                          <option value="Postpaid">Postpaid</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${
+                            c.type === "Prepaid"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+                              : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+                          }`}
+                        >
+                          {c.type}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {costHeads.length === 0 && !loading && (
+            <div className="p-16 text-center text-gray-400 font-bold italic tracking-widest">
+              No cost heads defined yet.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
