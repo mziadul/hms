@@ -237,7 +237,7 @@ export default function CostHeadsPage() {
                           className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold transition-all"
                           value={c.name}
                           onChange={(e) =>
-                            handleInputChange(index, "name", e.target.value)
+                            handleInputChange(idx, "name", e.target.value)
                           }
                           placeholder="e.g. Electricity Bill"
                         />
