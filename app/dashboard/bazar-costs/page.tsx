@@ -22,7 +22,6 @@ export default function BazarCostsPage() {
   const now = new Date();
   const currentYear = now.getFullYear();
 
-  // --- 1. Dynamic Year & Month Lists ---
   const years = useMemo(() => {
     const arr = [];
     for (let y = 2024; y <= currentYear; y++) arr.push(y);
@@ -38,7 +37,6 @@ export default function BazarCostsPage() {
     }));
   }, []);
 
-  // --- 2. State Management ---
   const [members, setMembers] = useState<Member[]>([]);
   const [filterYear, setFilterYear] = useState(currentYear);
   const [filterMonth, setFilterMonth] = useState(now.getMonth() + 1);
@@ -48,7 +46,6 @@ export default function BazarCostsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // --- 3. Fetch Members on Page Load ---
   useEffect(() => {
     const token = localStorage.getItem("userToken");
     api
@@ -61,7 +58,6 @@ export default function BazarCostsPage() {
       .catch((err) => console.error("Failed to load members", err));
   }, []);
 
-  // --- 4. Data Fetching ---
   const fetchBazarCosts = () => {
     const token = localStorage.getItem("userToken");
     setLoading(true);
@@ -97,8 +93,6 @@ export default function BazarCostsPage() {
 
   const handleSave = async () => {
     const token = localStorage.getItem("userToken");
-
-    // 1. Validation: Ensure all current rows are valid
     const isInvalid = items.some(
       (i) => !i.userId || i.amount === null || isNaN(i.amount),
     );
@@ -107,15 +101,9 @@ export default function BazarCostsPage() {
       return;
     }
 
-    // 2. DIRTY CHECKING: Only send New rows or rows where values changed
     const changedItems = items.filter((item) => {
-      // If it doesn't have an ID, it's a brand new row -> SEND IT
       if (!item.id) return true;
-
-      // Find the original version of this row
       const original = originalItems.find((o) => o.id === item.id);
-
-      // Compare current values vs original values
       return (
         !original ||
         item.userId !== original.userId ||
@@ -124,10 +112,8 @@ export default function BazarCostsPage() {
       );
     });
 
-    // 3. Deletion Handling: IDs that are still present in the table
     const activeIds = items.filter((i) => i.id).map((i) => i.id);
 
-    // If no changes and no deletions occurred, just exit edit mode
     if (
       changedItems.length === 0 &&
       activeIds.length === originalItems.length
@@ -146,79 +132,76 @@ export default function BazarCostsPage() {
 
       if (res.data.success) {
         setIsEditing(false);
-        fetchBazarCosts(); // Reload to get fresh IDs and original state
-        alert("Sync successful: Only changed rows were updated.");
+        fetchBazarCosts();
+        alert("✅ Bazar records synchronized!");
       }
     } catch (err) {
-      alert("Save failed. Check console for details.");
+      alert("❌ Save failed. Check connection.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
-      <Spinner isLoading={loading} message="Updating Bazar Records..." />
+    <div className="p-4 md:p-8 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors duration-300">
+      <Spinner isLoading={loading} message="Processing Bazar Records..." />
 
-      <h1 className="text-2xl font-black uppercase tracking-tighter mb-6 border-b-4 border-black dark:border-blue-500 pb-2 inline-block">
-        Bazar Manager
-      </h1>
-
-      {/* --- Filter Bar --- */}
-      <div className="flex flex-wrap items-end gap-4 mb-8 p-6 bg-gray-100 dark:bg-gray-800 border-2 border-black dark:border-gray-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <label className="block text-[10px] font-black uppercase mb-1 opacity-60">
-            Year
-          </label>
-          <select
-            value={filterYear}
-            onChange={(e) => setFilterYear(Number(e.target.value))}
-            disabled={isEditing}
-            className="bg-white dark:bg-gray-900 border-2 border-black dark:border-gray-500 px-3 py-2 font-bold outline-none cursor-pointer"
-          >
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
+          <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
+            Bazar Manager
+          </h1>
+          <p className="text-xs opacity-60 mt-1">
+            Track and manage monthly bazaar expenses for members
+          </p>
         </div>
 
-        <div>
-          <label className="block text-[10px] font-black uppercase mb-1 opacity-60">
-            Month
-          </label>
-          <select
-            value={filterMonth}
-            onChange={(e) => setFilterMonth(Number(e.target.value))}
-            disabled={isEditing}
-            className="bg-white dark:bg-gray-900 border-2 border-black dark:border-gray-500 px-3 py-2 font-bold outline-none cursor-pointer"
-          >
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <button
-          onClick={fetchBazarCosts}
-          disabled={isEditing}
-          className="px-6 py-2.5 bg-black text-white dark:bg-blue-600 dark:hover:bg-blue-700 font-black uppercase text-xs transition-all disabled:opacity-30 shadow-[2px_2px_0px_0px_rgba(0,0,0,0.2)]"
-        >
-          Search Data
-        </button>
-
-        <div className="flex gap-2 ml-auto">
-          {!isEditing ? (
-            <button
-              disabled={!hasSearched}
-              onClick={() => setIsEditing(true)}
-              className="px-6 py-2 border-2 border-black dark:border-gray-400 font-black uppercase text-xs"
+        {/* BUTTON & FILTER GROUP */}
+        <div className="flex flex-wrap gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl shadow-inner w-full md:w-auto">
+          <div className="flex gap-1 mr-2 border-r border-gray-300 dark:border-gray-600 pr-2">
+            <select
+              value={filterYear}
+              onChange={(e) => setFilterYear(Number(e.target.value))}
+              disabled={isEditing}
+              className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-1.5 px-3 rounded-lg outline-none font-bold text-xs shadow-sm border border-transparent focus:border-teal-500 transition-all"
             >
-              Edit Period
-            </button>
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(Number(e.target.value))}
+              disabled={isEditing}
+              className="bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-1.5 px-3 rounded-lg outline-none font-bold text-xs shadow-sm border border-transparent focus:border-teal-500 transition-all"
+            >
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {!isEditing ? (
+            <>
+              <button
+                onClick={fetchBazarCosts}
+                className="flex-1 md:flex-none px-6 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
+              >
+                Search
+              </button>
+              <button
+                disabled={!hasSearched}
+                onClick={() => setIsEditing(true)}
+                className="flex-1 md:flex-none px-6 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-bold text-[10px] uppercase rounded-lg border border-gray-200 dark:border-gray-600 hover:border-teal-500 transition-all disabled:opacity-50"
+              >
+                Edit Mode
+              </button>
+            </>
           ) : (
             <>
               <button
@@ -234,13 +217,13 @@ export default function BazarCostsPage() {
                     },
                   ])
                 }
-                className="px-4 py-2 bg-green-600 text-white font-black uppercase text-xs"
+                className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-emerald-700 transition-all"
               >
                 + Add Cost
               </button>
               <button
                 onClick={handleSave}
-                className="px-4 py-2 bg-blue-600 text-white font-black uppercase text-xs"
+                className="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
               >
                 Save
               </button>
@@ -249,7 +232,7 @@ export default function BazarCostsPage() {
                   setIsEditing(false);
                   fetchBazarCosts();
                 }}
-                className="px-4 py-2 border-2 border-gray-400 font-black uppercase text-xs"
+                className="flex-1 md:flex-none px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold uppercase text-[10px] rounded-lg transition-all"
               >
                 Cancel
               </button>
@@ -258,144 +241,147 @@ export default function BazarCostsPage() {
         </div>
       </div>
 
-      {/* --- Table --- */}
+      {/* TABLE SECTION */}
       {!hasSearched ? (
-        <div className="text-center py-20 border-2 border-dashed border-gray-300 dark:border-gray-700">
-          <p className="font-black uppercase text-gray-400">
-            Fetch data to manage Bazar
+        <div className="text-center py-24 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+          <p className="text-lg font-bold opacity-30 uppercase tracking-widest">
+            Select Period and Fetch Data
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto border-2 border-black dark:border-gray-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.05)]">
-          <table className="min-w-full text-sm text-left">
-            <thead className="bg-gray-200 dark:bg-gray-800 border-b-2 border-black dark:border-gray-700 font-black uppercase">
-              <tr>
-                <th className="px-6 py-4 border-r border-black/10 w-10 text-center">
-                  X
-                </th>
-                <th className="px-6 py-4 border-r border-black/10">
-                  Member Name
-                </th>
-                <th className="px-6 py-4 border-r border-black/10">Amount</th>
-                <th className="px-6 py-4">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {items.map((item, idx) => (
-                <tr
-                  key={idx}
-                  className={`${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-100/50 dark:bg-gray-800/40"}`}
-                >
-                  <td className="px-6 py-4 border-r border-black/10 text-center">
-                    {isEditing && (
-                      <button
-                        onClick={() =>
-                          setItems(items.filter((_, i) => i !== idx))
-                        }
-                        className="text-red-500 font-black"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </td>
-
-                  {/* User Dropdown Column */}
-                  <td className="px-6 py-4 min-w-[200px] border-r border-black/10 font-bold">
-                    {isEditing ? (
-                      <select
-                        value={item.userId}
-                        onChange={(e) =>
-                          handleInputChange(idx, "userId", e.target.value)
-                        }
-                        className="w-full bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 p-1.5 rounded outline-none text-gray-900 dark:text-gray-100"
-                      >
-                        <option value="">Select Member</option>
-                        {members.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      members.find((m) => String(m.id) === String(item.userId))
-                        ?.name ||
-                      item.userId ||
-                      "Unknown"
-                    )}
-                  </td>
-
-                  <td className="px-6 py-4 border-r border-black/10 font-mono">
-                    {isEditing ? (
-                      <input
-                        type="number"
-                        value={item.amount ?? ""}
-                        onChange={(e) =>
-                          handleInputChange(
-                            idx,
-                            "amount",
-                            e.target.value === ""
-                              ? null
-                              : Number(e.target.value),
-                          )
-                        }
-                        className="w-full bg-transparent border-b-2 border-gray-300 dark:border-gray-600 outline-none font-black text-blue-600 dark:text-blue-400"
-                      />
-                    ) : (
-                      <span className="font-black text-blue-600 dark:text-blue-400">
-                        {item.amount?.toLocaleString() ?? "0"}
-                      </span>
-                    )}
-                  </td>
-
-                  <td className="px-6 py-4 min-w-[200px]">
-                    {isEditing ? (
-                      <select
-                        value={item.status}
-                        onChange={(e) =>
-                          handleInputChange(idx, "status", e.target.value)
-                        }
-                        className="bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 px-2 py-1.5 rounded outline-none font-black text-xs text-gray-900 dark:text-gray-100"
-                      >
-                        <option
-                          value="active"
-                          className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        >
-                          ACTIVE
-                        </option>
-                        <option
-                          value="inactive"
-                          className="bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        >
-                          INACTIVE
-                        </option>
-                      </select>
-                    ) : (
-                      <span
-                        className={`px-3 py-1 text-[10px] font-black uppercase border-2 ${item.status === "active" ? "bg-green-100 text-green-700 border-green-600 dark:bg-green-900/30 dark:text-green-400" : "bg-red-100 text-red-700 border-red-600 dark:bg-red-900/30 dark:text-red-400"}`}
-                      >
-                        {item.status}
-                      </span>
-                    )}
-                  </td>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-900/50 text-[11px] uppercase tracking-widest font-black opacity-70">
+                  <th className="p-5 w-16 text-center">X</th>
+                  <th className="p-5">Member Name</th>
+                  <th className="p-5 text-center">Bazar Amount</th>
+                  <th className="p-5 text-center">Record Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {items.map((item, idx) => (
+                  <tr
+                    key={idx}
+                    className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group"
+                  >
+                    <td className="p-5 text-center">
+                      {isEditing ? (
+                        <button
+                          onClick={() =>
+                            setItems(items.filter((_, i) => i !== idx))
+                          }
+                          className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                        >
+                          ✕
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-700">
+                          —
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="p-5">
+                      {isEditing ? (
+                        <select
+                          value={item.userId}
+                          onChange={(e) =>
+                            handleInputChange(idx, "userId", e.target.value)
+                          }
+                          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold transition-all"
+                        >
+                          <option value="">Select Member</option>
+                          {members.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="font-bold text-gray-800 dark:text-gray-100">
+                          {members.find(
+                            (m) => String(m.id) === String(item.userId),
+                          )?.name || "Unknown Member"}
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="p-5 text-center">
+                      {isEditing ? (
+                        <div className="flex justify-center">
+                          <input
+                            type="number"
+                            value={item.amount ?? ""}
+                            onChange={(e) =>
+                              handleInputChange(
+                                idx,
+                                "amount",
+                                e.target.value === ""
+                                  ? null
+                                  : Number(e.target.value),
+                              )
+                            }
+                            className="w-32 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-center font-black text-blue-600 dark:text-blue-400"
+                            placeholder="0.00"
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-black text-blue-600 dark:text-blue-400 text-lg">
+                          {item.amount?.toLocaleString() ?? "0"}{" "}
+                          <span className="text-[10px]">TK</span>
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="p-5 text-center">
+                      {isEditing ? (
+                        <select
+                          value={item.status}
+                          onChange={(e) =>
+                            handleInputChange(idx, "status", e.target.value)
+                          }
+                          className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs font-black transition-all"
+                        >
+                          <option value="active">ACTIVE</option>
+                          <option value="inactive">INACTIVE</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${
+                            item.status === "active"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800"
+                              : "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/30 dark:text-rose-300 dark:border-rose-800"
+                          }`}
+                        >
+                          {item.status}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* --- Summary Card --- */}
+      {/* SUMMARY BOX */}
       {items.length > 0 && (
         <div className="mt-8 flex justify-end">
-          <div className="bg-black text-white dark:bg-blue-600 p-6 border-b-8 border-r-8 border-gray-300 dark:border-blue-900">
-            <p className="text-[10px] font-black uppercase tracking-tighter opacity-70 mb-1">
+          <div className="bg-gray-900 dark:bg-teal-600 text-white p-6 rounded-2xl shadow-2xl border-b-4 border-teal-500 dark:border-teal-800 min-w-[250px]">
+            <p className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">
               Total Monthly Bazar
             </p>
-            <p className="text-4xl font-black italic tracking-tighter">
-              {items
-                .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
-                .toLocaleString()}
-            </p>
+            <div className="flex items-baseline gap-2">
+              <span className="text-4xl font-black italic tracking-tighter">
+                {items
+                  .reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0)
+                  .toLocaleString()}
+              </span>
+              <span className="text-sm font-bold opacity-80">TK</span>
+            </div>
           </div>
         </div>
       )}
