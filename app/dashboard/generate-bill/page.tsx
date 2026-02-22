@@ -348,6 +348,12 @@ export default function MonthlyBillForm() {
     }
   }, [token, selectedYear, selectedMonth, bazarTotal, users]);
 
+  useEffect(() => {
+    if (isAuthorized && bazarTotal > 0) {
+      fetchMeals();
+    }
+  }, [fetchMeals, isAuthorized, bazarTotal]);
+
   const handleChange = (
     userId: string,
     headId: number | string,
@@ -540,203 +546,134 @@ export default function MonthlyBillForm() {
   return (
     <div className="p-2 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-sm text-gray-900 dark:text-gray-100">
       <Spinner isLoading={loading} message="Processing Bill..." />
-      <h1 className="text-2xl font-bold mb-6 border-b border-gray-200 dark:border-gray-700 pb-2">
-        Monthly Bill Statement
-      </h1>
-      <div className="grid grid-cols-2 md:flex gap-4 mb-8 items-end border-b border-gray-200 dark:border-gray-700 pb-6">
-        <div className="flex flex-col">
-          <label className="text-xs font-bold mb-1 opacity-70">Year</label>
-          <select
-            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 rounded outline-none"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
-          >
-            <option value="0">Select Year</option>
-            {years.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col">
-          <label className="text-xs font-bold mb-1 opacity-70">Month</label>
-          <select
-            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 rounded outline-none"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-          >
-            <option value="0">Select Month</option>
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>
-                {m.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1 min-w-[150px]">
-          <label className="text-xs font-bold mb-1 opacity-70 flex justify-between">
-            Bazar Total{" "}
-            <button
-              onClick={fetchBazarCosts}
-              className="text-blue-500 hover:underline"
-            >
-              {bazarLoading ? "..." : "⟳ Refresh"}
-            </button>
-          </label>
-          <div className="p-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded text-center font-bold text-green-600">
-            {bazarTotal.toFixed(2)} Tk
-          </div>
-        </div>
-        <div>
-          <button
-            onClick={distributeAllHeads}
-            className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded font-bold shadow-md transition-all active:scale-95"
-          >
-            Distribute Cost
-          </button>
-        </div>
-        <button
-          onClick={fetchMeals}
-          disabled={loading || bazarTotal <= 0}
-          className="col-span-2 md:col-auto bg-blue-600 text-white px-6 py-2 rounded font-bold shadow-md disabled:opacity-50"
-        >
-          Calculate Meal Cost
-        </button>
+      <div className="mb-10">
+        <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
+          Monthly Bill Statement
+        </h1>
+        <p className="text-xs opacity-60 mt-1 italic">
+          Review and finalize monthly mess dues
+        </p>
       </div>
 
-      {/* New Eye-catching Summary Cards for Global Stats */}
-      <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {/* Total Meals Card */}
-        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 p-6 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl">
-          <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10 backdrop-blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 h-20 w-20 -translate-x-6 translate-y-6 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+        <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-4 rounded-xl text-white shadow-lg relative overflow-hidden group">
           <div className="relative z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-wider text-blue-100">
-                  Total Meals
-                </p>
-                <p className="mt-2 text-4xl font-black">
-                  {summaryData.totalMeals.toFixed(1)}
-                </p>
-              </div>
-              <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
-                <svg
-                  className="h-8 w-8"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                  ></path>
-                </svg>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-blue-100">
-              <span className="mr-2">🍽️ Total meals consumed</span>
-            </div>
+            <p className="text-[9px] font-black uppercase opacity-60 tracking-widest leading-none">
+              Total Meals
+            </p>
+            <h2 className="text-3xl font-black mt-1 tracking-tighter leading-none">
+              {summaryData.totalMeals.toFixed(1)}
+            </h2>
+          </div>
+          <div className="absolute -right-2 -bottom-2 text-white/10 text-6xl font-black italic select-none">
+            M
           </div>
         </div>
 
         {/* Total Bazar Card */}
-        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-500 to-green-600 p-6 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl">
-          <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10 backdrop-blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 h-20 w-20 -translate-x-6 translate-y-6 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 p-4 rounded-xl text-white shadow-lg relative overflow-hidden group">
           <div className="relative z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-wider text-green-100">
-                  Total Bazar
-                </p>
-                <p className="mt-2 text-4xl font-black">
-                  {bazarTotal.toFixed(2)}
-                </p>
-                <p className="text-sm opacity-90">Taka</p>
-              </div>
-              <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
-                <svg
-                  className="h-8 w-8"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  ></path>
-                </svg>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-green-100">
-              <span className="mr-2">🛒 Total grocery expenses</span>
-            </div>
+            <p className="text-[9px] font-black uppercase opacity-60 tracking-widest leading-none">
+              Total Bazar
+            </p>
+            <h2 className="text-3xl font-black mt-1 tracking-tighter leading-none">
+              {bazarTotal.toLocaleString()}{" "}
+              <span className="text-sm font-bold">TK</span>
+            </h2>
+          </div>
+          <div className="absolute -right-2 -bottom-2 text-white/10 text-6xl font-black italic select-none">
+            B
           </div>
         </div>
 
         {/* Meal Rate Card */}
-        <div className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-purple-600 p-6 text-white shadow-xl transition-all duration-300 hover:scale-105 hover:shadow-2xl">
-          <div className="absolute right-0 top-0 h-24 w-24 translate-x-8 -translate-y-8 rounded-full bg-white/10 backdrop-blur-3xl"></div>
-          <div className="absolute bottom-0 left-0 h-20 w-20 -translate-x-6 translate-y-6 rounded-full bg-white/10 backdrop-blur-3xl"></div>
+        <div className="bg-gradient-to-br from-purple-600 to-purple-700 p-4 rounded-xl text-white shadow-lg relative overflow-hidden group">
           <div className="relative z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-wider text-purple-100">
-                  Meal Rate
-                </p>
-                <p className="mt-2 text-4xl font-black">
-                  {summaryData.globalMealRate.toFixed(2)}
-                </p>
-                <p className="text-sm opacity-90">Tk/meal</p>
-              </div>
-              <div className="rounded-full bg-white/20 p-3 backdrop-blur-3xl">
-                <svg
-                  className="h-8 w-8"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                  ></path>
-                </svg>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center text-sm text-purple-100">
-              <span className="mr-2">
-                📊 {bazarTotal.toFixed(2)} Tk /{" "}
-                {summaryData.totalMeals.toFixed(1)} meals
-              </span>
-            </div>
+            <p className="text-[9px] font-black uppercase opacity-60 tracking-widest leading-none">
+              Meal Rate
+            </p>
+            <h2 className="text-3xl font-black mt-1 tracking-tighter leading-none">
+              {summaryData.globalMealRate.toFixed(2)}{" "}
+              <span className="text-sm font-bold">TK</span>
+            </h2>
+          </div>
+          <div className="absolute -right-2 -bottom-2 text-white/10 text-6xl font-black italic select-none">
+            R
           </div>
         </div>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-3 items-center justify-end">
-        <button
-          onClick={sendSummaryEmail}
-          disabled={loading || selectedUserIds.length === 0}
-          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
-        >
-          📧 Notify Selected ({selectedUserIds.length})
-        </button>
+      {/* --- CONSOLIDATED ACTION BAR --- */}
+      <div className="flex flex-col md:flex-row justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded-2xl mb-8 gap-4 shadow-inner">
+        {/* Filter & Refresh Group */}
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <div className="flex gap-1 border-r border-gray-300 dark:border-gray-600 pr-2">
+            <select
+              className="bg-white dark:bg-gray-700 p-1.5 px-3 rounded-lg font-bold text-xs outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+            >
+              {years.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+            </select>
+            <select
+              className="bg-white dark:bg-gray-700 p-1.5 px-3 rounded-lg font-bold text-xs outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            >
+              {months.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={fetchBazarCosts}
+            className="px-4 py-2 bg-white dark:bg-gray-700 text-teal-600 dark:text-teal-400 font-black uppercase text-[10px] rounded-lg shadow-sm border border-transparent hover:border-teal-500 transition-all"
+          >
+            {bazarLoading ? "..." : "Refresh"}
+          </button>
+        </div>
 
-        <button
-          onClick={syncMonthlyData}
-          disabled={loading || summaryData.totalMeals === 0}
-          className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
-        >
-          📁 Sync to Archive
-        </button>
+        {/* Calculation Buttons Group */}
+        <div className="flex gap-2 w-full md:w-auto">
+          <button
+            onClick={distributeAllHeads}
+            className="flex-1 md:flex-none px-4 py-2 bg-amber-500 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-amber-600 transition-all"
+          >
+            Distribute
+          </button>
+          <button
+            onClick={fetchMeals}
+            disabled={loading || bazarTotal <= 0}
+            className="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all disabled:opacity-50"
+          >
+            Calculate
+          </button>
+        </div>
+
+        {/* Final Action Group (Email & Save) */}
+        <div className="flex gap-2 w-full md:w-auto border-t md:border-t-0 md:border-l border-gray-300 dark:border-gray-600 pt-3 md:pt-0 md:pl-4">
+          <button
+            onClick={sendSummaryEmail}
+            disabled={loading || selectedUserIds.length === 0}
+            className="flex-1 md:flex-none bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+          >
+            📧 Notify ({selectedUserIds.length})
+          </button>
+          <button
+            onClick={syncMonthlyData}
+            disabled={loading || summaryData.totalMeals === 0}
+            className="flex-1 md:flex-none bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 shadow-lg transition-all active:scale-95 disabled:opacity-50"
+          >
+            📁 Save
+          </button>
+        </div>
       </div>
 
       {/* Main Table */}
@@ -774,20 +711,20 @@ export default function MonthlyBillForm() {
               <th className="border-b border-r border-gray-200 dark:border-gray-700 p-3 bg-red-50/50 dark:bg-red-900/20 text-red-600">
                 Bazar Paid
               </th>
-              <th className="border-b border-gray-200 dark:border-gray-700 p-3 bg-blue-600 text-white">
-                Personal Total
+              <th className="border-b border-r border-gray-200 dark:border-gray-700 p-3 bg-blue-600 text-white">
+                Total Payable
               </th>
               {/* New summary columns */}
-              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[100px]">
+              <th className="border-b border-r border-gray-200 dark:border-gray-700 p-3 min-w-[100px]">
                 User Meals
               </th>
-              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[120px]">
+              <th className="border-b border-r border-gray-200 dark:border-gray-700 p-3 min-w-[120px]">
                 Slot Range
               </th>
-              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[120px]">
+              <th className="border-b border-r border-gray-200 dark:border-gray-700 p-3 min-w-[120px]">
                 Meals in Slot
               </th>
-              <th className="border-b border-gray-200 dark:border-gray-700 p-3 min-w-[130px]">
+              <th className="border-b border-r border-gray-200 dark:border-gray-700 p-3 min-w-[130px]">
                 Slot Meal Rate
               </th>
             </tr>
@@ -937,37 +874,6 @@ export default function MonthlyBillForm() {
             </tr>
           </tfoot>
         </table>
-      </div>
-
-      {/* Bottom Summary Cards */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-          <p className="text-xs font-bold uppercase opacity-60 mb-1">
-            Total Expenses
-          </p>
-          <p className="text-2xl font-black text-blue-600">
-            {(headTotal(costHeads[0]?.id || 0) + headTotal("meal")).toFixed(2)}{" "}
-            Tk
-          </p>
-        </div>
-        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-          <p className="text-xs font-bold uppercase opacity-60 mb-1">
-            Total Bazar
-          </p>
-          <p className="text-2xl font-black text-green-600">
-            {bazarTotal.toFixed(2)} Tk
-          </p>
-        </div>
-        <div className="p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm">
-          <p className="text-xs font-bold uppercase opacity-60 mb-1">
-            Net Balance
-          </p>
-          <p
-            className={`text-2xl font-black ${grandTotal() >= 0 ? "text-blue-600" : "text-rose-600"}`}
-          >
-            {grandTotal().toFixed(2)} Tk
-          </p>
-        </div>
       </div>
     </div>
   );
