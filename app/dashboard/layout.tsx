@@ -21,43 +21,43 @@ export default function DashboardLayout({ children }: Props) {
   const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
 
   const menus = [
-    { label: "Dashboard", icon: "🏠", path: "/dashboard" },
+    { label: "Overview", icon: "📊", path: "/dashboard" },
     {
-      label: "Users",
+      label: "User Directory",
       icon: "👥",
       isAdminOnly: true,
-      subMenu: [{ label: "List Users", path: "/dashboard/users" }],
+      subMenu: [{ label: "Manage Users", path: "/dashboard/users" }],
     },
     {
-      label: "Costs",
-      icon: "💰",
+      label: "Cost Configuration",
+      icon: "⚙️",
       isAdminOnly: true,
       subMenu: [
-        { label: "Cost Heads", path: "/dashboard/cost-heads" },
-        { label: "Custom Cost", path: "/dashboard/custom-costs" },
+        { label: "Revenue Heads", path: "/dashboard/cost-heads" },
+        { label: "Custom Allocations", path: "/dashboard/custom-costs" },
       ],
     },
     {
-      label: "Bazar",
+      label: "Inventory & Bazar",
       icon: "🛒",
       isAdminOnly: false,
       subMenu: [
-        { label: "Slot", path: "/dashboard/bazar-slots" },
-        { label: "Bazar Cost", path: "/dashboard/bazar-costs" },
+        { label: "Schedule Slots", path: "/dashboard/bazar-slots" },
+        { label: "Expense Records", path: "/dashboard/bazar-costs" },
       ],
     },
-    { label: "Add Meal", icon: "🍲", path: "/dashboard/meal/add" },
-    { label: "Important Info", icon: "📌", path: "/dashboard/settings" },
+    { label: "Meal Planner", icon: "🍱", path: "/dashboard/meal/add" },
+    { label: "Knowledge Base", icon: "📌", path: "/dashboard/settings" },
     {
-      label: "Generate Bill",
+      label: "Financials",
       icon: "🧾",
       isAdminOnly: true,
       subMenu: [
-        { label: "Bill Generation", path: "/dashboard/generate-bill" },
-        { label: "Pay Bill", path: "/dashboard/pay-bill" },
+        { label: "Invoice Generation", path: "/dashboard/generate-bill" },
+        { label: "Payment Ledger", path: "/dashboard/pay-bill" },
       ],
     },
-    { label: "Reset Password", icon: "🔑", path: "/dashboard/reset-password" },
+    { label: "Security", icon: "🛡️", path: "/dashboard/reset-password" },
   ];
 
   useEffect(() => {
