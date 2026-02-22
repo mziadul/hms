@@ -150,7 +150,7 @@ export default function UsersPage() {
               onClick={() => setIsEditing(true)}
               className="w-full md:w-auto px-6 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-bold text-xs uppercase rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 hover:border-teal-500 transition-all"
             >
-              Edit Directory
+              Edit Mode
             </button>
           ) : (
             <>

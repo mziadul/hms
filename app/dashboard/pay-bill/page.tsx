@@ -108,7 +108,7 @@ export default function PaymentManagement() {
         message="Processing Payment..."
       />
 
-      {/* Header Section */}
+      {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
@@ -119,10 +119,10 @@ export default function PaymentManagement() {
           </p>
         </div>
 
-        {/* Dynamic Dropdowns with Dark Mode support */}
+        {/* DROPDOWN PILL CONTAINER */}
         <div className="flex gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl shadow-inner w-full md:w-auto">
           <select
-            className="flex-1 md:flex-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 px-4 rounded-lg outline-none font-bold text-sm shadow-sm border border-transparent focus:border-teal-500"
+            className="flex-1 md:flex-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 px-4 rounded-lg outline-none font-bold text-sm shadow-sm border border-transparent focus:border-teal-500 transition-all"
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
@@ -133,7 +133,7 @@ export default function PaymentManagement() {
             ))}
           </select>
           <select
-            className="flex-1 md:flex-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 px-4 rounded-lg outline-none font-bold text-sm shadow-sm border border-transparent focus:border-teal-500"
+            className="flex-1 md:flex-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 p-2 px-4 rounded-lg outline-none font-bold text-sm shadow-sm border border-transparent focus:border-teal-500 transition-all"
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
           >
@@ -146,7 +146,7 @@ export default function PaymentManagement() {
         </div>
       </div>
 
-      {/* Table Section */}
+      {/* TABLE SECTION */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl">
         <div className="overflow-x-auto">
           <table className="w-full text-left min-w-[800px]">
@@ -177,29 +177,27 @@ export default function PaymentManagement() {
                       <div className="font-bold text-gray-800 dark:text-gray-100">
                         {userName}
                       </div>
-                      <div className="text-[10px] opacity-40 font-mono tracking-tighter">
-                        REF-ID: {uId}
-                      </div>
                     </td>
-                    <td className="p-5 text-center font-medium">
-                      {netPayable.toLocaleString()} Tk
+                    <td className="p-5 text-center font-bold text-gray-900 dark:text-gray-100">
+                      {netPayable.toLocaleString()}{" "}
+                      <span className="text-[10px] opacity-50">TK</span>
                     </td>
                     <td className="p-5 text-center font-bold text-teal-600 dark:text-teal-400">
-                      {paidAmount.toLocaleString()} Tk
+                      {paidAmount.toLocaleString()}{" "}
+                      <span className="text-[10px] opacity-50">TK</span>
                     </td>
                     <td className="p-5 text-center">
                       <span
-                        className={`font-black text-sm px-2 py-1 rounded-lg ${due > 0 ? "text-rose-600 bg-rose-50 dark:bg-rose-900/20" : "text-green-600 bg-green-50 dark:bg-green-900/20"}`}
+                        className={`font-black text-sm px-2 py-1 rounded-lg ${due > 0 ? "text-rose-600 bg-rose-50 dark:bg-rose-900/20" : "text-emerald-600 bg-emerald-50 dark:bg-emerald-900/20"}`}
                       >
-                        {due > 0 ? `${due.toLocaleString()} Tk` : "CLEARED"}
+                        {due > 0 ? `${due.toLocaleString()} TK` : "CLEARED"}
                       </span>
                     </td>
                     <td className="p-5">
                       {due > 0 ? (
                         <div className="flex gap-2 justify-end items-center">
-                          {/* Updated Input with Dark Mode Text Visibility */}
                           <input
-                            className="w-24 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-teal-500 transition-all font-bold"
+                            className="w-24 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500 transition-all font-bold"
                             type="number"
                             placeholder="Amt"
                             value={paymentInputs[uId] || ""}
@@ -217,21 +215,21 @@ export default function PaymentManagement() {
                                 parseFloat(paymentInputs[uId]),
                               )
                             }
-                            className="bg-teal-600 hover:bg-teal-700 text-white px-3 py-1.5 rounded-lg text-[10px] uppercase font-black shadow-md transition-all active:scale-95"
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-[10px] uppercase font-black shadow-md transition-all active:scale-95"
                           >
-                            Pay
+                            Save
                           </button>
                           <button
                             onClick={() => submitPayment(bill, due)}
                             className="bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900 px-3 py-1.5 rounded-lg text-[10px] uppercase font-black shadow-md transition-all active:scale-95"
                           >
-                            Full
+                            Full Payment
                           </button>
                         </div>
                       ) : (
                         <div className="flex justify-end">
-                          <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                            <span className="text-green-600 text-sm">✓</span>
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                            <span className="text-emerald-600 text-sm">✓</span>
                           </div>
                         </div>
                       )}
@@ -246,8 +244,8 @@ export default function PaymentManagement() {
 
       {bills.length === 0 && !loading && (
         <div className="text-center py-24 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700 mt-6">
-          <p className="text-lg font-bold opacity-30">
-            No payment records found for this month.
+          <p className="text-lg font-bold opacity-30 uppercase tracking-widest">
+            No payment records found
           </p>
         </div>
       )}
