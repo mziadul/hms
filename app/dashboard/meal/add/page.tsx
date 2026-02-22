@@ -408,47 +408,62 @@ export default function MealSheet() {
     <div className="p-2 md:p-4 bg-white dark:bg-gray-900 min-h-screen text-sm text-gray-900 dark:text-gray-100">
       <Spinner isLoading={loading} message="Processing Request..." />
 
-      {/* ফিল্টার সেকশন - Responsive Grid */}
-      <div className="grid grid-cols-2 md:flex gap-4 mb-6 items-end border-b border-gray-200 dark:border-gray-700 pb-4">
-        <div className="flex flex-col">
-          <label className="block text-xs font-bold mb-1 opacity-70">
-            Year
-          </label>
-          <select
-            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(Number(e.target.value))}
+      <div className="mb-8">
+        <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
+          Monthly Meal Sheet
+        </h1>
+        <p className="text-xs opacity-60 mt-1 italic">
+          Track and manage daily breakfast, lunch, and dinner records
+        </p>
+      </div>
+
+      <div className="flex flex-col md:flex-row justify-between items-center bg-gray-100 dark:bg-gray-800 p-2 rounded-2xl mb-6 gap-4 shadow-inner">
+        {/* Selection & Refresh Group */}
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <div className="flex gap-1 border-r border-gray-300 dark:border-gray-600 pr-2">
+            <select
+              className="bg-white dark:bg-gray-700 p-1.5 px-3 rounded-lg font-bold text-xs outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer text-gray-900 dark:text-gray-100"
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(Number(e.target.value))}
+            >
+              {years.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+
+            <select
+              className="bg-white dark:bg-gray-700 p-1.5 px-3 rounded-lg font-bold text-xs outline-none focus:ring-2 focus:ring-teal-500 transition-all cursor-pointer text-gray-900 dark:text-gray-100"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(Number(e.target.value))}
+            >
+              {months.map((month) => (
+                <option key={month.value} value={month.value}>
+                  {month.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={fetchMeals}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-black uppercase text-[10px] rounded-lg shadow-md transition-all active:scale-95 disabled:opacity-50"
           >
-            {years.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+            {loading ? "Loading..." : "View Meal"}
+          </button>
         </div>
-        <div className="flex flex-col">
-          <label className="block text-xs font-bold mb-1 opacity-70">
-            Month
-          </label>
-          <select
-            className="border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2 rounded outline-none focus:ring-2 focus:ring-blue-500 text-gray-900 dark:text-gray-100"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(Number(e.target.value))}
-          >
-            {months.map((month) => (
-              <option key={month.value} value={month.value}>
-                {month.name}
-              </option>
-            ))}
-          </select>
+
+        {/* Status & Helper Info (Optional - Right side) */}
+        <div className="hidden md:flex gap-4 px-4 border-l border-gray-300 dark:border-gray-600">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+            <span className="text-[10px] font-bold opacity-60 uppercase">
+              Auto Sync Active
+            </span>
+          </div>
         </div>
-        <button
-          onClick={fetchMeals}
-          className="col-span-2 md:col-auto bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold shadow-md transition-colors disabled:opacity-50"
-          disabled={loading}
-        >
-          {loading ? "Loading..." : "Filter Meal"}
-        </button>
       </div>
 
       {/* Status Indicators */}

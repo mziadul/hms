@@ -158,13 +158,13 @@ export default function UsersPage() {
                 onClick={addNewRow}
                 className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-emerald-700 transition-all flex items-center justify-center gap-1"
               >
-                <span>+</span> Add New
+                <span>+</span> Add User
               </button>
               <button
                 onClick={handleSave}
                 className="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
               >
-                Save Changes
+                Save
               </button>
               <button
                 onClick={() => {
