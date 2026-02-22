@@ -31,7 +31,6 @@ export default function DateRangesPage() {
   const [hasSearched, setHasSearched] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // Initial Auth & Member Load
   useEffect(() => {
     const info = localStorage.getItem("userInfo");
     const token = localStorage.getItem("userToken");
@@ -60,8 +59,6 @@ export default function DateRangesPage() {
 
   const isAdmin = userRole === "admin";
 
-  // FIX 1: Reset functionality - No auto-assigning names.
-  // It will create empty slots for Admin to choose.
   const handleAutoCalculate = () => {
     const eligible = members.filter((m) => m.name.toLowerCase() !== "omar");
     if (eligible.length === 0)
@@ -74,11 +71,10 @@ export default function DateRangesPage() {
 
     let currentDay = 1;
     const newSlots = eligible.map((_, i) => {
-      // Using '_' because we don't want to auto-assign
       const hasExtraDay = i >= numMembers - remainder;
       const duration = baseDays + (hasExtraDay ? 1 : 0);
       const slot = {
-        userId: "", // DEFAULT EMPTY for Admin
+        userId: "",
         year: filterYear,
         month: filterMonth,
         startDate: currentDay,
@@ -92,7 +88,6 @@ export default function DateRangesPage() {
     setIsEditing(true);
   };
 
-  // FIX 2: Wrapped in useCallback to ensure stability and better sync
   const fetchData = useCallback(async () => {
     const token = localStorage.getItem("userToken");
     if (!token) return;
@@ -109,7 +104,6 @@ export default function DateRangesPage() {
       });
 
       const existingData = Array.isArray(res.data) ? res.data : [];
-
       setItems(
         existingData.map((d) => ({
           id: d.id,
@@ -124,7 +118,7 @@ export default function DateRangesPage() {
       setHasSearched(true);
       setIsEditing(false);
     } catch (err) {
-      alert("Error fetching slots. Please try again.");
+      alert("Error fetching slots.");
     } finally {
       setLoading(false);
     }
@@ -149,9 +143,9 @@ export default function DateRangesPage() {
       );
 
       await fetchData();
-      alert("Changes saved successfully!");
+      alert("✅ Slots saved successfully!");
     } catch (err) {
-      alert("Error saving data");
+      alert("❌ Error saving data");
       setLoading(false);
     }
   };
@@ -167,23 +161,27 @@ export default function DateRangesPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
+    <div className="p-4 md:p-8 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Spinner isLoading={loading} message="Syncing Slots..." />
 
-      <h1 className="text-2xl font-black uppercase mb-6 border-b-4 border-black dark:border-purple-500 inline-block">
-        Bazar Slot Manager
-      </h1>
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
+            Bazar Slot Manager
+          </h1>
+          <p className="text-xs opacity-60 mt-1">
+            Assign and manage bazaar schedules for members
+          </p>
+        </div>
 
-      <div className="flex flex-wrap items-end gap-4 mb-8 p-6 bg-gray-100 dark:bg-gray-800 border-2 border-black dark:border-gray-700 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-        <div className="flex gap-4">
-          <div>
-            <label className="block text-[10px] font-black uppercase mb-1">
-              Year
-            </label>
+        {/* CONTROLS PILL CONTAINER */}
+        <div className="flex flex-wrap gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl shadow-inner w-full md:w-auto">
+          <div className="flex gap-1 mr-2 border-r border-gray-300 dark:border-gray-600 pr-2">
             <select
               value={filterYear}
               onChange={(e) => setFilterYear(Number(e.target.value))}
-              className="bg-white dark:bg-gray-900 border-2 border-black px-3 py-2 font-bold outline-none text-gray-900 dark:text-white"
+              className="bg-white dark:bg-gray-700 p-1.5 px-3 rounded-lg font-bold text-xs outline-none border border-transparent focus:border-teal-500 transition-all"
             >
               {[2026, 2025, 2024].map((y) => (
                 <option key={y} value={y}>
@@ -191,15 +189,10 @@ export default function DateRangesPage() {
                 </option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="block text-[10px] font-black uppercase mb-1">
-              Month
-            </label>
             <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(Number(e.target.value))}
-              className="bg-white dark:bg-gray-900 border-2 border-black px-3 py-2 font-bold outline-none text-gray-900 dark:text-white"
+              className="bg-white dark:bg-gray-700 p-1.5 px-3 rounded-lg font-bold text-xs outline-none border border-transparent focus:border-teal-500 transition-all"
             >
               {Array.from({ length: 12 }, (_, i) => (
                 <option key={i + 1} value={i + 1}>
@@ -210,178 +203,189 @@ export default function DateRangesPage() {
               ))}
             </select>
           </div>
-        </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={fetchData}
-            className="px-6 py-2.5 bg-black text-white font-black uppercase text-xs active:scale-95 transition-transform"
-          >
-            Load Existing
-          </button>
-          {isAdmin && (
-            <button
-              onClick={handleAutoCalculate}
-              className="px-6 py-2.5 bg-blue-600 text-white font-black uppercase text-xs border-2 border-black"
-            >
-              Reset & Auto-Generate
-            </button>
-          )}
-        </div>
-
-        <div className="flex gap-2 ml-auto">
-          {!isEditing ? (
-            <button
-              disabled={!hasSearched || loading}
-              onClick={() => setIsEditing(true)}
-              className="px-6 py-2 border-2 border-black dark:border-gray-500 font-black uppercase text-xs dark:text-white"
-            >
-              {isAdmin ? "Edit Ranges" : "Claim My Slot"}
-            </button>
-          ) : (
-            <>
-              {isAdmin && (
+          <div className="flex flex-wrap gap-2">
+            {!isEditing ? (
+              <>
                 <button
-                  onClick={() =>
-                    setItems([
-                      ...items,
-                      {
-                        userId: "",
-                        year: filterYear,
-                        month: filterMonth,
-                        startDate: 1,
-                        endDate: 1,
-                      },
-                    ])
-                  }
-                  className="px-4 py-2 bg-green-600 text-white font-black uppercase text-xs"
+                  onClick={fetchData}
+                  className="px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
                 >
-                  + Add Slot
+                  View Schedule
                 </button>
-              )}
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 bg-purple-600 text-white font-black uppercase text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
-              >
-                Save Changes
-              </button>
-              <button
-                onClick={() => {
-                  setIsEditing(false);
-                  fetchData();
-                }}
-                className="px-4 py-2 border-2 border-gray-400 font-black uppercase text-xs"
-              >
-                Cancel
-              </button>
-            </>
-          )}
+                {isAdmin && (
+                  <button
+                    onClick={handleAutoCalculate}
+                    className="px-4 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-bold text-[10px] uppercase rounded-lg border border-gray-200 dark:border-gray-600 hover:border-teal-500 transition-all"
+                  >
+                    Auto-Generate
+                  </button>
+                )}
+                <button
+                  disabled={!hasSearched || loading}
+                  onClick={() => setIsEditing(true)}
+                  className="px-4 py-2 bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900 font-black uppercase text-[10px] rounded-lg shadow-md hover:opacity-90 transition-all disabled:opacity-50"
+                >
+                  {isAdmin ? "Edit Mode" : "Claim Slot"}
+                </button>
+              </>
+            ) : (
+              <>
+                {isAdmin && (
+                  <button
+                    onClick={() =>
+                      setItems([
+                        ...items,
+                        {
+                          userId: "",
+                          year: filterYear,
+                          month: filterMonth,
+                          startDate: 1,
+                          endDate: 1,
+                        },
+                      ])
+                    }
+                    className="px-4 py-2 bg-emerald-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-emerald-700 transition-all"
+                  >
+                    + Add Slot
+                  </button>
+                )}
+                <button
+                  onClick={handleSave}
+                  className="px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setIsEditing(false);
+                    fetchData();
+                  }}
+                  className="px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold uppercase text-[10px] rounded-lg"
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
-      {hasSearched && (
-        <div className="overflow-x-auto border-2 border-black dark:border-gray-700 shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)]">
-          <table className="min-w-full text-sm text-left">
-            <thead className="bg-gray-200 dark:bg-gray-800 border-b-2 border-black font-black uppercase">
-              <tr>
-                <th className="px-6 py-4 border-r border-black/10">
-                  Start Day
-                </th>
-                <th className="px-6 py-4 border-r border-black/10">End Day</th>
-                <th className="px-6 py-4">Assigned Member</th>
-                {isAdmin && isEditing && (
-                  <th className="px-6 py-4 text-center">Action</th>
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-              {items.map((item, idx) => (
-                <tr key={idx} className="bg-white dark:bg-gray-900">
-                  <td className="px-6 py-4 border-r border-black/10">
-                    {isEditing && isAdmin ? (
-                      <input
-                        type="number"
-                        value={item.startDate}
-                        onChange={(e) =>
-                          handleInputChange(
-                            idx,
-                            "startDate",
-                            Number(e.target.value),
-                          )
-                        }
-                        className="w-20 bg-white dark:bg-gray-800 border-2 border-black p-1 font-bold text-gray-900 dark:text-white"
-                      />
-                    ) : (
-                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                        {item.startDate}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 border-r border-black/10">
-                    {isEditing && isAdmin ? (
-                      <input
-                        type="number"
-                        value={item.endDate}
-                        onChange={(e) =>
-                          handleInputChange(
-                            idx,
-                            "endDate",
-                            Number(e.target.value),
-                          )
-                        }
-                        className="w-20 bg-white dark:bg-gray-800 border-2 border-black p-1 font-bold text-gray-900 dark:text-white"
-                      />
-                    ) : (
-                      <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                        {item.endDate}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 min-w-[200px]">
-                    {isEditing ? (
-                      <select
-                        value={item.userId}
-                        onChange={(e) =>
-                          handleInputChange(idx, "userId", e.target.value)
-                        }
-                        className="w-full bg-white dark:bg-gray-800 border-2 border-gray-400 dark:border-gray-600 p-2 font-bold rounded text-gray-900 dark:text-white"
-                      >
-                        <option value="">-- Open Slot --</option>
-                        {members.map((m) => (
-                          <option key={m.id} value={m.id}>
-                            {m.name}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="font-bold text-gray-800 dark:text-gray-200">
-                        {members.find(
-                          (m) => String(m.id) === String(item.userId),
-                        )?.name || "Unassigned"}
-                      </span>
-                    )}
-                  </td>
+      {/* DATA TABLE */}
+      {hasSearched ? (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[700px]">
+              <thead>
+                <tr className="bg-gray-50 dark:bg-gray-900/50 text-[11px] uppercase tracking-widest font-black opacity-70">
+                  <th className="p-5 text-center">Start Day</th>
+                  <th className="p-5 text-center">End Day</th>
+                  <th className="p-5">Assigned Member</th>
                   {isAdmin && isEditing && (
-                    <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() =>
-                          setItems(items.filter((_, i) => i !== idx))
-                        }
-                        className="text-red-500 font-black hover:scale-110 transition-transform"
-                      >
-                        ✕
-                      </button>
-                    </td>
+                    <th className="p-5 text-center">Action</th>
                   )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {items.length === 0 && !loading && (
-            <div className="p-10 text-center font-bold text-gray-400 italic">
-              No slots found. Use "Auto-Generate" or "Add Slot" to start.
-            </div>
-          )}
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {items.map((item, idx) => (
+                  <tr
+                    key={idx}
+                    className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group"
+                  >
+                    <td className="p-5 text-center">
+                      {isEditing && isAdmin ? (
+                        <input
+                          type="number"
+                          value={item.startDate}
+                          onChange={(e) =>
+                            handleInputChange(
+                              idx,
+                              "startDate",
+                              Number(e.target.value),
+                            )
+                          }
+                          className="w-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded-lg text-center font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      ) : (
+                        <span className="font-mono font-bold text-teal-600 dark:text-teal-400">
+                          {item.startDate}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5 text-center">
+                      {isEditing && isAdmin ? (
+                        <input
+                          type="number"
+                          value={item.endDate}
+                          onChange={(e) =>
+                            handleInputChange(
+                              idx,
+                              "endDate",
+                              Number(e.target.value),
+                            )
+                          }
+                          className="w-16 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-2 py-1 rounded-lg text-center font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        />
+                      ) : (
+                        <span className="font-mono font-bold text-teal-600 dark:text-teal-400">
+                          {item.endDate}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5">
+                      {isEditing ? (
+                        <select
+                          value={item.userId}
+                          onChange={(e) =>
+                            handleInputChange(idx, "userId", e.target.value)
+                          }
+                          className="w-full max-w-[250px] bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg font-bold text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        >
+                          <option value="">-- Open Slot --</option>
+                          {members.map((m) => (
+                            <option key={m.id} value={m.id}>
+                              {m.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div
+                          className={`font-bold ${item.userId ? "text-gray-800 dark:text-gray-100" : "text-gray-400 italic"}`}
+                        >
+                          {members.find(
+                            (m) => String(m.id) === String(item.userId),
+                          )?.name || "Unassigned Slot"}
+                        </div>
+                      )}
+                    </td>
+                    {isAdmin && isEditing && (
+                      <td className="p-5 text-center">
+                        <button
+                          onClick={() =>
+                            setItems(items.filter((_, i) => i !== idx))
+                          }
+                          className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                        >
+                          ✕
+                        </button>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {items.length === 0 && !loading && (
+              <div className="p-16 text-center text-gray-400 font-bold italic tracking-widest">
+                No slots found. Use Load or Auto-Generate.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-24 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+          <p className="text-lg font-bold opacity-30 uppercase tracking-widest">
+            Load Existing Data to View Slots
+          </p>
         </div>
       )}
     </div>
