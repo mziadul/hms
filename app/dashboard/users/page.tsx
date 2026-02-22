@@ -32,7 +32,6 @@ export default function UsersPage() {
     }
 
     const userData = JSON.parse(info);
-
     if (userData.type !== "admin") {
       router.replace("/dashboard");
       return;
@@ -76,9 +75,7 @@ export default function UsersPage() {
   };
 
   const removeRow = (index: number) => {
-    if (
-      confirm("Remove this user from the list? (Changes applied after saving)")
-    ) {
+    if (confirm("Are you sure you want to remove this member?")) {
       const updated = users.filter((_, i) => i !== index);
       setUsers(updated);
     }
@@ -119,9 +116,9 @@ export default function UsersPage() {
       );
       setIsEditing(false);
       fetchUsers();
-      alert("Sync complete!");
+      alert("✅ Directory updated successfully!");
     } catch (err) {
-      alert("Save failed.");
+      alert("❌ Failed to save changes.");
     } finally {
       setLoading(false);
     }
@@ -132,44 +129,49 @@ export default function UsersPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
+    <div className="p-4 md:p-8 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Spinner isLoading={loading} message="Processing..." />
 
-      {/* Updated header container: flex-col for mobile, flex-row for desktop */}
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 border-b-2 border-gray-200 dark:border-gray-700 pb-4">
-        <h1 className="text-2xl font-bold uppercase tracking-wider">
-          Member Directory
-        </h1>
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
+            Member Directory
+          </h1>
+          <p className="text-xs opacity-60 mt-1">
+            Manage system users, credentials and access roles
+          </p>
+        </div>
 
-        {/* Updated button group: flex-wrap to prevent screen overflow */}
-        <div className="flex flex-wrap gap-2 sm:gap-3">
+        {/* BUTTON GROUP WITH STANDARD COLORS */}
+        <div className="flex flex-wrap gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl shadow-inner w-full md:w-auto">
           {!isEditing ? (
             <button
               onClick={() => setIsEditing(true)}
-              className="w-full sm:w-auto px-4 py-2 border-2 border-gray-800 dark:border-gray-400 font-black hover:bg-gray-800 hover:text-white dark:hover:bg-gray-400 dark:hover:text-gray-900 uppercase text-xs transition-colors"
+              className="w-full md:w-auto px-6 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-bold text-xs uppercase rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 hover:border-teal-500 transition-all"
             >
-              Enter Edit Mode
+              Edit Directory
             </button>
           ) : (
             <>
               <button
                 onClick={addNewRow}
-                className="flex-1 sm:flex-none px-4 py-2 bg-green-100 dark:bg-green-900/30 border-2 border-green-600 text-green-700 dark:text-green-400 font-black uppercase text-xs whitespace-nowrap"
+                className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-emerald-700 transition-all flex items-center justify-center gap-1"
               >
-                + Add Member
+                <span>+</span> Add New
               </button>
               <button
                 onClick={handleSave}
-                className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 border-2 border-blue-700 text-white font-black uppercase text-xs shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] whitespace-nowrap"
+                className="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
               >
-                Save All Changes
+                Save Changes
               </button>
               <button
                 onClick={() => {
                   setIsEditing(false);
                   setUsers(JSON.parse(JSON.stringify(originalUsers)));
                 }}
-                className="w-full sm:w-auto px-4 py-2 border-2 border-gray-300 dark:border-gray-600 font-black uppercase text-xs whitespace-nowrap"
+                className="flex-1 md:flex-none px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold uppercase text-[10px] rounded-lg hover:bg-gray-300 dark:hover:bg-gray-500 transition-all"
               >
                 Cancel
               </button>
@@ -178,126 +180,131 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="overflow-x-auto border border-gray-300 dark:border-gray-700 rounded-xl shadow-md">
-        <table className="min-w-full text-sm text-left border-separate border-spacing-0">
-          <thead className="bg-gray-200 dark:bg-gray-800">
-            <tr>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 font-black uppercase text-gray-700 dark:text-gray-300 w-16 text-center">
-                Action
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 font-black uppercase text-gray-700 dark:text-gray-300">
-                ID
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 font-black uppercase text-gray-700 dark:text-gray-300">
-                Name
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 font-black uppercase text-gray-700 dark:text-gray-300">
-                Email
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 font-black uppercase text-gray-700 dark:text-gray-300">
-                Password
-              </th>
-              <th className="px-6 py-4 border-b border-gray-300 dark:border-gray-700 font-black uppercase text-gray-700 dark:text-gray-300">
-                Role
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-300 dark:divide-gray-700">
-            {users.map((u, idx) => {
-              const isChanged =
-                isEditing &&
-                u.id &&
-                JSON.stringify(u) !==
-                  JSON.stringify(originalUsers.find((o) => o.id === u.id));
-              return (
-                <tr
-                  key={idx}
-                  className={`${idx % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-100 dark:bg-gray-800/40"} ${isChanged ? "bg-yellow-50 dark:bg-yellow-900/10" : ""}`}
-                >
-                  <td className="px-6 py-4 border-r border-gray-200 dark:border-gray-800 text-center">
-                    {isEditing ? (
-                      <button
-                        onClick={() => removeRow(idx)}
-                        className="text-red-600 hover:text-red-800 dark:text-red-400 font-black text-lg"
-                        title="Delete Row"
-                      >
-                        ✕
-                      </button>
-                    ) : (
-                      <span className="text-gray-300 dark:text-gray-700">
-                        —
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 font-mono text-xs font-bold text-gray-500 dark:text-gray-400 border-r border-gray-200 dark:border-gray-800">
-                    {u.id || "NEW"}
-                  </td>
-                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
-                    {isEditing ? (
-                      <input
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
-                        value={u.name}
-                        onChange={(e) =>
-                          handleInputChange(idx, "name", e.target.value)
-                        }
-                      />
-                    ) : (
-                      <span className="font-bold">{u.name}</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 min-w-[300px] border-r border-gray-200 dark:border-gray-800">
-                    {isEditing ? (
-                      <input
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
-                        value={u.email}
-                        onChange={(e) =>
-                          handleInputChange(idx, "email", e.target.value)
-                        }
-                      />
-                    ) : (
-                      <span>{u.email}</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 min-w-[200px] border-r border-gray-200 dark:border-gray-800">
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-2 py-1 rounded outline-none text-gray-900 dark:text-white"
-                        value={u.password || ""}
-                        placeholder="New password"
-                        onChange={(e) =>
-                          handleInputChange(idx, "password", e.target.value)
-                        }
-                      />
-                    ) : (
-                      <span className="text-gray-400 italic">********</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 min-w-[200px]">
-                    {isEditing ? (
-                      <select
-                        className="w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 px-1 py-1 rounded outline-none text-gray-900 dark:text-white"
-                        value={u.type}
-                        onChange={(e) =>
-                          handleInputChange(idx, "type", e.target.value)
-                        }
-                      >
-                        <option value="user">USER</option>
-                        <option value="admin">ADMIN</option>
-                      </select>
-                    ) : (
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-md text-xs font-black uppercase border ${u.type === "admin" ? "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-900/40 dark:text-purple-300 dark:border-purple-700" : "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700"}`}
-                      >
-                        {u.type}
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      {/* TABLE SECTION */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[900px]">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-900/50 text-[11px] uppercase tracking-widest font-black opacity-70">
+                <th className="p-5 w-16 text-center">Action</th>
+                <th className="p-5">Ref ID</th>
+                <th className="p-5">Full Name</th>
+                <th className="p-5">Email Address</th>
+                <th className="p-5">Password</th>
+                <th className="p-5">Status / Role</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {users.map((u, idx) => {
+                const isChanged =
+                  isEditing &&
+                  u.id &&
+                  JSON.stringify(u) !==
+                    JSON.stringify(originalUsers.find((o) => o.id === u.id));
+                return (
+                  <tr
+                    key={idx}
+                    className={`hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group ${
+                      isChanged ? "bg-blue-50/30 dark:bg-blue-900/10" : ""
+                    }`}
+                  >
+                    <td className="p-5 text-center">
+                      {isEditing ? (
+                        <button
+                          onClick={() => removeRow(idx)}
+                          className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm"
+                          title="Remove Member"
+                        >
+                          ✕
+                        </button>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-700">
+                          —
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5 font-mono text-[10px] font-bold text-gray-400">
+                      {u.id || (
+                        <span className="text-emerald-500 italic">NEW</span>
+                      )}
+                    </td>
+                    <td className="p-5">
+                      {isEditing ? (
+                        <input
+                          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold transition-all"
+                          value={u.name}
+                          onChange={(e) =>
+                            handleInputChange(idx, "name", e.target.value)
+                          }
+                        />
+                      ) : (
+                        <span className="font-bold text-gray-800 dark:text-gray-100">
+                          {u.name}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5">
+                      {isEditing ? (
+                        <input
+                          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all"
+                          value={u.email}
+                          onChange={(e) =>
+                            handleInputChange(idx, "email", e.target.value)
+                          }
+                        />
+                      ) : (
+                        <span className="text-gray-600 dark:text-gray-400">
+                          {u.email}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm transition-all"
+                          value={u.password || ""}
+                          placeholder="••••••"
+                          onChange={(e) =>
+                            handleInputChange(idx, "password", e.target.value)
+                          }
+                        />
+                      ) : (
+                        <span className="text-gray-300 italic tracking-widest text-xs">
+                          ••••••••
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-5">
+                      {isEditing ? (
+                        <select
+                          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-2 py-1.5 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-xs font-bold transition-all"
+                          value={u.type}
+                          onChange={(e) =>
+                            handleInputChange(idx, "type", e.target.value)
+                          }
+                        >
+                          <option value="user">USER</option>
+                          <option value="admin">ADMIN</option>
+                        </select>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center px-3 py-1 rounded-lg text-[10px] font-black uppercase border ${
+                            u.type === "admin"
+                              ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-800"
+                              : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+                          }`}
+                        >
+                          {u.type}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
