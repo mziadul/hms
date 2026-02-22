@@ -17,7 +17,6 @@ export default function SettingsPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
 
-  // ইনিশিয়াল ডাটা লোড এবং অথরাইজেশন চেক
   useEffect(() => {
     const info = localStorage.getItem("userInfo");
     const token = localStorage.getItem("userToken");
@@ -28,11 +27,10 @@ export default function SettingsPage() {
     }
 
     const userData = JSON.parse(info);
-    setUserRole(userData.type); // 'admin' অথবা 'user'
+    setUserRole(userData.type);
     fetchSettings();
   }, [router]);
 
-  // ডাটা ফেচ করার ফাংশন
   const fetchSettings = async () => {
     const token = localStorage.getItem("userToken");
     setLoading(true);
@@ -48,73 +46,85 @@ export default function SettingsPage() {
     }
   };
 
-  // ডাটা সেভ করার ফাংশন
   const handleSave = async () => {
     const token = localStorage.getItem("userToken");
     setLoading(true);
     try {
-      // CORS এরর এড়াতে text/plain এবং JSON.stringify ব্যবহার করা হয়েছে
       await api.post(
         `${process.env.NEXT_PUBLIC_GAS_URL}?action=updateSettings&token=${token}`,
         JSON.stringify(items),
-        { headers: { 'Content-Type': 'text/plain' } }
+        { headers: { "Content-Type": "text/plain" } },
       );
       setIsEditing(false);
       await fetchSettings();
-      alert("Settings saved successfully!");
+      alert("✅ Settings saved successfully!");
     } catch (err) {
-      alert("Error saving settings");
+      alert("❌ Error saving settings");
     } finally {
       setLoading(false);
     }
-  }
-
-  // বাংলাদেশি ফোন নাম্বার ভ্যালিডেশন (০১ দিয়ে শুরু এবং ১১ ডিজিট)
-  const isValidBDPhone = (num: string) => {
-    const cleanNum = num.replace(/[\s-]/g, ""); 
-    return /^(\+8801|8801|01)\d{9}$/.test(cleanNum);
   };
 
-  const handleInputChange = (idx: number, field: keyof SettingItem, value: string) => {
+  const isValidBDPhone = (num: string) => {
+    const cleanNum = num.replace(/[\s-]/g, "");
+    return /^(\+8801|8801|01|09)\d{9}$/.test(cleanNum);
+  };
+
+  const handleInputChange = (
+    idx: number,
+    field: keyof SettingItem,
+    value: string,
+  ) => {
     const updated = [...items];
     updated[idx] = { ...updated[idx], [field]: value };
     setItems(updated);
   };
 
   return (
-    <div className="p-4 md:p-6 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors">
+    <div className="p-4 md:p-8 bg-white dark:bg-gray-900 min-h-screen text-gray-900 dark:text-gray-100 transition-colors duration-300">
       <Spinner isLoading={loading} message="Syncing References..." />
 
-      <div className="flex justify-between items-center mb-6 border-b-4 border-black dark:border-purple-500 pb-2">
-        <h1 className="text-xl font-black uppercase tracking-tight">
-          Reference Settings
-        </h1>
+      {/* HEADER SECTION */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight border-l-4 border-teal-500 pl-3">
+            Reference Settings
+          </h1>
+          <p className="text-xs opacity-60 mt-1">
+            Manage important numbers and mess credentials
+          </p>
+        </div>
+
+        {/* BUTTON GROUP PILL CONTAINER */}
         {userRole === "admin" && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2 bg-gray-100 dark:bg-gray-800 p-1.5 rounded-xl shadow-inner w-full md:w-auto">
             {!isEditing ? (
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-6 py-2 bg-black text-white dark:bg-purple-600 font-black uppercase text-xs active:scale-95 transition-transform"
+                className="w-full md:w-auto px-6 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-bold text-xs uppercase rounded-lg shadow-sm border border-gray-200 dark:border-gray-600 hover:border-teal-500 transition-all"
               >
-                Edit Info
+                Edit Mode
               </button>
             ) : (
               <>
                 <button
                   onClick={() => setItems([...items, { key: "", value: "" }])}
-                  className="px-4 py-2 bg-green-600 text-white font-black uppercase text-xs"
+                  className="flex-1 md:flex-none px-4 py-2 bg-emerald-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-emerald-700 transition-all"
                 >
                   + Add New
                 </button>
                 <button
                   onClick={handleSave}
-                  className="px-4 py-2 bg-purple-600 text-white font-black uppercase text-xs shadow-[2px_2px_0px_0px_rgba(0,0,0,1)]"
+                  className="flex-1 md:flex-none px-4 py-2 bg-blue-600 text-white font-black uppercase text-[10px] rounded-lg shadow-md hover:bg-blue-700 transition-all"
                 >
                   Save
                 </button>
                 <button
-                  onClick={() => { setIsEditing(false); fetchSettings(); }}
-                  className="px-4 py-2 border-2 border-gray-400 font-black uppercase text-xs"
+                  onClick={() => {
+                    setIsEditing(false);
+                    fetchSettings();
+                  }}
+                  className="flex-1 md:flex-none px-4 py-2 bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-200 font-bold uppercase text-[10px] rounded-lg transition-all"
                 >
                   Cancel
                 </button>
@@ -124,81 +134,100 @@ export default function SettingsPage() {
         )}
       </div>
 
-      <div className="overflow-x-auto border-2 border-black dark:border-gray-700 shadow-[6px_6px_0px_0px_rgba(0,0,0,0.1)]">
-        <table className="min-w-full text-sm text-left">
-          <thead className="bg-gray-100 dark:bg-gray-800 border-b-2 border-black font-black uppercase text-[10px] tracking-widest">
-            <tr>
-              <th className="px-6 py-4 border-r border-black/10">Label / Name</th>
-              <th className="px-6 py-4">Reference Value / Number</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
-            {items.map((item, idx) => (
-              <tr key={idx} className="bg-white dark:bg-gray-900 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group">
-                <td className="px-6 py-4 border-r border-black/10">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      placeholder="e.g. Internet Account"
-                      value={item.key}
-                      onChange={(e) => handleInputChange(idx, "key", e.target.value)}
-                      className="w-full bg-white dark:bg-gray-800 border-2 border-black dark:border-gray-600 p-2 font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500"
-                    />
-                  ) : (
-                    <span className="font-bold opacity-70 uppercase text-xs">{item.key}</span>
-                  )}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center justify-between gap-4">
+      {/* TABLE SECTION */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-xl">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[600px]">
+            <thead>
+              <tr className="bg-gray-50 dark:bg-gray-900/50 text-[11px] uppercase tracking-widest font-black opacity-70">
+                <th className="p-5 w-1/3">Label / Name</th>
+                <th className="p-5">Reference Value / Number</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+              {items.map((item, idx) => (
+                <tr
+                  key={idx}
+                  className="hover:bg-gray-50/50 dark:hover:bg-gray-700/30 transition-colors group"
+                >
+                  <td className="p-5 align-top">
                     {isEditing ? (
                       <input
                         type="text"
-                        placeholder="e.g. 017XXXXXXXX"
-                        value={item.value}
-                        onChange={(e) => handleInputChange(idx, "value", e.target.value)}
-                        className="w-full bg-white dark:bg-gray-800 border-2 border-black dark:border-gray-600 p-2 font-bold text-gray-900 dark:text-white outline-none focus:ring-2 focus:ring-purple-500 font-mono"
+                        placeholder="e.g. Internet Account"
+                        value={item.key}
+                        onChange={(e) =>
+                          handleInputChange(idx, "key", e.target.value)
+                        }
+                        className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold transition-all"
                       />
                     ) : (
-                      <>
-                        <span className="text-blue-600 dark:text-purple-400 font-black text-sm font-mono tracking-wider">
-                          {item.value}
-                        </span>
-                        {/* কল বাটন - শুধুমাত্র ফোন নাম্বারের জন্য */}
-                        {isValidBDPhone(item.value) && (
-                          <a 
-                            href={`tel:${item.value}`}
-                            className="bg-green-500 hover:bg-green-600 text-white w-9 h-9 rounded-full flex items-center justify-center shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:scale-90 transition-all text-lg"
-                            title="Call this number"
-                          >
-                            📞
-                          </a>
-                        )}
-                      </>
+                      <span className="font-bold text-gray-500 dark:text-gray-400 uppercase text-xs tracking-wider">
+                        {item.key}
+                      </span>
                     )}
-                    {isEditing && (
-                      <button
-                        onClick={() => setItems(items.filter((_, i) => i !== idx))}
-                        className="text-red-500 font-black hover:scale-120 transition-transform text-xl px-2"
-                      >
-                        ✕
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        
-        {items.length === 0 && !loading && (
-          <div className="p-12 text-center font-bold text-gray-400 italic bg-white dark:bg-gray-900">
-            No important information saved yet.
-          </div>
-        )}
+                  </td>
+                  <td className="p-5">
+                    <div className="flex items-center justify-between gap-4">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          placeholder="e.g. 017XXXXXXXX"
+                          value={item.value}
+                          onChange={(e) =>
+                            handleInputChange(idx, "value", e.target.value)
+                          }
+                          className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 px-3 py-2 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm font-black font-mono transition-all"
+                        />
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <span className="text-gray-900 dark:text-gray-100 font-black text-sm font-mono tracking-wider">
+                            {item.value}
+                          </span>
+                          {isValidBDPhone(item.value) && (
+                            <a
+                              href={`tel:${item.value}`}
+                              className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 w-8 h-8 rounded-full flex items-center justify-center hover:bg-emerald-600 hover:text-white transition-all shadow-sm"
+                              title="Call this number"
+                            >
+                              <span className="text-sm">📞</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+                      {isEditing && (
+                        <button
+                          onClick={() =>
+                            setItems(items.filter((_, i) => i !== idx))
+                          }
+                          className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/30 text-rose-600 flex items-center justify-center hover:bg-rose-600 hover:text-white transition-all shadow-sm ml-2"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {items.length === 0 && !loading && (
+            <div className="p-16 text-center text-gray-400 font-bold italic tracking-widest">
+              No important information saved yet.
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/10 border-l-4 border-blue-500 text-[10px] uppercase font-bold opacity-60">
-        Note: Only Admin can update these records. Users can click on phone numbers to call directly.
+      <div className="mt-8 p-4 bg-blue-50/50 dark:bg-blue-900/10 border-l-4 border-blue-500 rounded-r-lg">
+        <p className="text-[10px] uppercase font-black text-blue-600 dark:text-blue-400 tracking-widest">
+          Admin Notice
+        </p>
+        <p className="text-xs mt-1 opacity-70">
+          Only Admin can update these records. Users can click on phone numbers
+          to call directly.
+        </p>
       </div>
     </div>
   );
