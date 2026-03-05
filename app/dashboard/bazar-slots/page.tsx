@@ -137,13 +137,27 @@ export default function DateRangesPage() {
         }),
       );
 
-      await api.post(
+      const res = await api.post(
         `${process.env.NEXT_PUBLIC_GAS_URL}?action=upsertDateRanges&token=${token}&year=${filterYear}&month=${filterMonth}`,
         params,
       );
 
-      await fetchData();
-      alert("✅ Slots saved successfully!");
+      if (res.data.success) {
+        const skipped = res.data.skipped || [];
+        const inserted = res.data.inserted || 0;
+
+        if (skipped.length > 0) {
+          alert(
+            `⚠️ Partial Update!\n\n✅ ${inserted} slots saved.\n❌ Skipped: ${skipped.join(", ")}\n\nReason: These slots were already occupied.`,
+          );
+        } else {
+          alert("✅ Slots saved successfully!");
+        }
+        await fetchData();
+      } else {
+        alert("❌ Error: " + res.data.message);
+        setLoading(false);
+      }
     } catch (err) {
       alert("❌ Error saving data");
       setLoading(false);
