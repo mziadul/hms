@@ -572,81 +572,99 @@ function upsertBazarCosts(e, currentUser) {
  * Columns: ID, User ID, Year, Month, Start Date, End Date
  */
 function upsertDateRanges(e, currentUser) {
+  // ১. স্ক্রিপ্ট লেভেলে লক নেওয়া হচ্ছে (যাতে একাধিক ইউজার একসাথে রাইট না করতে পারে)
+  var lock = LockService.getScriptLock();
+  
+  try {
+    // ৩০ সেকেন্ড পর্যন্ত অপেক্ষা করবে লক পাওয়ার জন্য
+    lock.waitLock(30000); 
+  } catch (err) {
+    // যদি ৩০ সেকেন্ডের মধ্যে লক না পায় (সার্ভার খুব বিজি থাকলে)
+    return jsonResponse({ success: false, message: "Server too busy. Please try again." });
+  }
+
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = ss.getSheetByName('BazarSlot'); // Ensure your sheet name matches
+    var sheet = ss.getSheetByName('BazarSlot');
     if (!sheet) return jsonResponse({ error: "Sheet 'BazarSlot' not found" });
 
-    var data = sheet.getDataRange().getValues();
-    var headers = data[0];
-    
+    var isAdmin = (currentUser.type === 'admin');
     var payload = JSON.parse(e.parameter.data || "{}");
     var incomingItems = payload.items || []; 
-    var activeIds = (payload.activeIds || []).map(function(id) { return String(id); });
-    
     var filterYear = String(e.parameter.year || "").trim(); 
     var filterMonth = String(e.parameter.month || "").trim();
 
-    var finalRows = [headers];
-    var updatedCount = 0;
-    var insertedCount = 0;
+    // শিট থেকে একদম 'তাজা' ডেটা রিড করা (লক হওয়ার ঠিক পরেই)
+    var sheetData = sheet.getDataRange().getValues();
+    var skippedRows = [];
+    var successCount = 0;
 
-    // 1. Separate current period
-    for (var i = 1; i < data.length; i++) {
-      var row = data[i];
-      var rowId = String(row[0]);
-      var rowYear = String(row[2]).trim(); 
-      var rowMonth = String(row[3]).trim();
-
-      if (rowYear === filterYear && rowMonth === filterMonth) {
-        if (activeIds.indexOf(rowId) !== -1) {
-          var updateItem = incomingItems.find(function(item) { 
-            return item.id && String(item.id) === rowId; 
-          });
-
-          if (updateItem) {
-            row[1] = String(updateItem.userId);
-            row[4] = updateItem.startDate; // Expecting YYYY-MM-DD
-            row[5] = updateItem.endDate;   // Expecting YYYY-MM-DD
-            updatedCount++;
-          }
-          finalRows.push(row);
-        }
-      } else {
-        finalRows.push(row);
-      }
-    }
-
-    // 2. ID Auto-increment
-    var maxId = 0;
-    data.forEach(function(r) { 
-      var id = parseInt(r[0]); 
-      if (!isNaN(id) && id > maxId) maxId = id; 
-    });
-
-    // 3. Insert New
     incomingItems.forEach(function(item) {
-      if (!item.id) {
-        maxId++;
-        finalRows.push([
-          maxId,
+      var found = false;
+      var incomingId = String(item.id || "");
+
+      for (var i = 1; i < sheetData.length; i++) {
+        if (String(sheetData[i][0]) === incomingId && incomingId !== "") {
+          found = true;
+          
+          var existingUserIdInSheet = String(sheetData[i][1] || "").trim();
+          var isSlotEmpty = (existingUserIdInSheet === "" || existingUserIdInSheet === "null");
+
+          // কন্ডিশন: স্লট খালি না থাকলে এবং ইউজার অ্যাডমিন না হলে আপডেট হবে না
+          if (!isSlotEmpty && !isAdmin) {
+             if (existingUserIdInSheet !== String(item.userId)) {
+               skippedRows.push(item.startDate + "-" + item.endDate);
+               return; // Skip this item
+             }
+          }
+
+          // আপডেট অপারেশন
+          sheet.getRange(i + 1, 1, 1, 6).setValues([[
+            item.id,
+            String(item.userId),
+            filterYear,
+            filterMonth,
+            item.startDate,
+            item.endDate
+          ]]);
+          successCount++;
+          break;
+        }
+      }
+
+      // নতুন ইনসার্ট (যদি আইডি না থাকে)
+      if (!found) {
+        var newId = (sheet.getLastRow() > 0) ? parseInt(sheetData[sheetData.length-1][0]) + 1 : 1;
+        if(isNaN(newId)) newId = Utilities.getUuid().substring(0,8);
+
+        sheet.appendRow([
+          item.id || newId,
           String(item.userId),
           filterYear,
           filterMonth,
           item.startDate,
           item.endDate
         ]);
-        insertedCount++;
+        successCount++;
       }
     });
 
-    sheet.clearContents();
-    sheet.getRange(1, 1, finalRows.length, 6).setValues(finalRows);
+    // ২. কাজ শেষ হলে লক রিলিজ করা
+    lock.releaseLock();
 
-    return jsonResponse({ success: true, inserted: insertedCount, updated: updatedCount });
+    return jsonResponse({ 
+      success: true, 
+      inserted: successCount, 
+      skipped: skippedRows,
+      message: skippedRows.length > 0 
+        ? "Warning: Occupied slots (" + skippedRows.join(", ") + ") skipped. Only Admin can change them." 
+        : "Success! Your changes were saved."
+    });
 
-  } catch (err) {
-    return jsonResponse({ error: "GAS Error: " + err.message });
+  } catch (error) {
+    // কোনো এরর হলেও লক রিলিজ নিশ্চিত করা
+    if(lock.hasLock()) lock.releaseLock();
+    return jsonResponse({ success: false, message: "Server error: " + error.toString() });
   }
 }
 
@@ -1087,7 +1105,7 @@ function sendBulkNotifications(e) {
     var userSheet = ss.getSheetByName("Users");
 
     if (!reportSheet || !userSheet) {
-      writeLog("Error", "Monthly_Archive ba Users sheet pawa jayni!");
+      writeLog("Error", "Required sheets (Monthly_Archive or Users) not found!");
       return jsonResponse({ error: "Required sheets missing" });
     }
 
@@ -1095,9 +1113,10 @@ function sendBulkNotifications(e) {
     var targetYear = payload.year;   
     var targetMonth = payload.month; 
     var userIdsToSend = payload.userIds; 
-    var subject = payload.subject || "মাসিক মেস বিলের বিবরণ";
+    // Default subject updated to English
+    var subject = payload.subject || "Monthly Mess Bill Summary - " + targetMonth + " " + targetYear;
 
-    // ১. Users sheet theke ID (Capital) onujayi Email map toiri kora
+    // 1. Create Email Map from Users sheet
     var userData = userSheet.getDataRange().getValues();
     var userHeaders = userData[0];
     var uIdIdx = userHeaders.indexOf("ID"); 
@@ -1105,7 +1124,7 @@ function sendBulkNotifications(e) {
     if (uEmailIdx === -1) uEmailIdx = userHeaders.indexOf("email");
 
     if (uIdIdx === -1 || uEmailIdx === -1) {
-      writeLog("Error", "Users sheet-e 'ID' ba 'Email' column pawa jayni");
+      writeLog("Error", "Required columns 'ID' or 'Email' not found in Users sheet");
       return jsonResponse({ error: "Users sheet column mismatch" });
     }
 
@@ -1115,7 +1134,7 @@ function sendBulkNotifications(e) {
       emailMap[idKey] = userData[i][uEmailIdx];
     }
 
-    // ২. Archive sheet matching logic shoho data neya
+    // 2. Fetch data from Archive sheet
     var data = reportSheet.getDataRange().getValues();
     var headers = data[0];
     var rows = data.slice(1);
@@ -1139,7 +1158,7 @@ function sendBulkNotifications(e) {
       slotRate: headers.indexOf("Slot Rate")
     };
 
-    // Dynamic Fixed Costs column gulo (Bazar Paid er por theke Net Payable er age porjonto)
+    // Fixed Costs columns (between Bazar Paid and Net Payable)
     var fixedCostHeaders = headers.slice(idx.bPaid + 1, idx.netPayable);
     var sentCount = 0;
 
@@ -1148,7 +1167,7 @@ function sendBulkNotifications(e) {
       var userEmail = emailMap[searchId];
 
       if (!userEmail) {
-        writeLog("Skip", "User ID " + searchId + " er email Users sheet-e pawa jayni.");
+        writeLog("Skip", "Email not found for User ID: " + searchId);
         return;
       }
 
@@ -1159,58 +1178,58 @@ function sendBulkNotifications(e) {
       });
 
       if (userRow) {
-        // --- Full Detailed Body Start ---
-        var emailBody = "প্রিয় " + userRow[idx.name] + ",\n\n" +
-                        targetMonth + " " + targetYear + " মাসের আপনার মেস বিলের বিবরণ নিচে দেওয়া হলো:\n\n" +
+        // --- Full Detailed Body Start (English) ---
+        var emailBody = "Dear " + userRow[idx.name] + ",\n\n" +
+                        "Please find the details of your mess bill for " + targetMonth + " " + targetYear + " below:\n\n" +
                         
-                        "--- মেসের মোট হিসাব (Global Summary) ---\n" +
-                        "মেসের মোট বাজার: " + Number(userRow[idx.totalBazar] || 0).toFixed(2) + " টাকা\n" +
-                        "মেসের মোট মিল: " + (userRow[idx.totalMeals] || 0) + "\n" +
-                        "গড় মিল রেট: " + Number(userRow[idx.avgRate] || 0).toFixed(2) + " টাকা\n\n" +
+                        "--- Global Mess Summary ---\n" +
+                        "Total Mess Expense: " + Number(userRow[idx.totalBazar] || 0).toFixed(2) + " BDT\n" +
+                        "Total Mess Meals: " + (userRow[idx.totalMeals] || 0) + "\n" +
+                        "Average Meal Rate: " + Number(userRow[idx.avgRate] || 0).toFixed(2) + " BDT\n\n" +
                         
-                        "--- আপনার ব্যক্তিগত হিসাব ---\n" +
-                        "আপনার মোট মিল: " + (userRow[idx.pMeals] || 0) + "\n" +
-                        "মিল খরচ: " + Number(userRow[idx.mCost] || 0).toFixed(2) + " টাকা\n" +
-                        "বাজার জমা (Debit): " + Number(userRow[idx.bPaid] || 0).toFixed(2) + " টাকা\n";
+                        "--- Your Personal Summary ---\n" +
+                        "Total Meals Consumed: " + (userRow[idx.pMeals] || 0) + "\n" +
+                        "Meal Cost: " + Number(userRow[idx.mCost] || 0).toFixed(2) + " BDT\n" +
+                        "Bazar Deposit (Debit): " + Number(userRow[idx.bPaid] || 0).toFixed(2) + " BDT\n";
 
-        // অন্যান্য খরচ (Fixed Costs) add kora
+        // Dynamic Fixed Costs
         if (fixedCostHeaders.length > 0) {
-          emailBody += "\n--- অন্যান্য খরচ (Fixed Costs) ---\n";
+          emailBody += "\n--- Fixed/Additional Costs ---\n";
           fixedCostHeaders.forEach(function(h) {
             var val = userRow[headers.indexOf(h)] || 0;
-            emailBody += h + ": " + Number(val).toFixed(2) + " টাকা\n";
+            emailBody += h + ": " + Number(val).toFixed(2) + " BDT\n";
           });
         }
 
-        // বাজার ম্যানেজারের স্লট তথ্য (jodi thake)
+        // Slot/Bazar Manager Info (If applicable)
         if (userRow[idx.slotRange] && userRow[idx.slotRange] !== "-" && userRow[idx.slotRange] !== "") {
-          emailBody += "\n--- বাজার ম্যানেজার তথ্য ---\n" +
-                       "আপনার স্লট: " + userRow[idx.slotRange] + "\n" +
-                       "স্লট চলাকালীন মিল: " + (userRow[idx.slotMeals] || 0) + "\n" +
-                       "স্লট রেট: " + Number(userRow[idx.slotRate] || 0).toFixed(2) + " টাকা\n";
+          emailBody += "\n--- Shopping Slot Info ---\n" +
+                       "Your Assigned Slot: " + userRow[idx.slotRange] + "\n" +
+                       "Meals during slot: " + (userRow[idx.slotMeals] || 0) + "\n" +
+                       "Slot Rate: " + Number(userRow[idx.slotRate] || 0).toFixed(2) + " BDT\n";
         }
 
         emailBody += "\n------------------------------------------\n" +
-                     "মোট দেয় বিল (Net Payable): " + Number(userRow[idx.netPayable] || 0).toFixed(2) + " টাকা\n" +
-                     "পেমেন্ট স্ট্যাটাস: " + (userRow[idx.status] === "Paid" ? "পরিশোধিত" : "বাকি (Unpaid)") + "\n" +
+                     "Net Payable Amount: " + Number(userRow[idx.netPayable] || 0).toFixed(2) + " BDT\n" +
+                     "Payment Status: " + (userRow[idx.status] === "Paid" ? "Paid" : "Unpaid") + "\n" +
                      "------------------------------------------\n\n" +
-                     "যদি কোনো ভুল থাকে, দয়া করে ম্যানেজারের সাথে যোগাযোগ করুন।\n" +
-                     "ধন্যবাদান্তে,\nমেস ম্যানেজমেন্ট সিস্টেম";
+                     "If you notice any discrepancies, please reach out for clarification.\n\n" +
+                     "Best Regards,\nMess Management System";
         // --- Full Detailed Body End ---
 
         try {
           GmailApp.sendEmail(userEmail, subject, emailBody);
           sentCount++;
-          writeLog("Success", "Detailed Email sent to: " + userEmail);
+          writeLog("Success", "Email sent to: " + userEmail);
         } catch (mailErr) {
           writeLog("Mail Error", userEmail + ": " + mailErr.toString());
         }
       } else {
-        writeLog("Not Found", "ID: " + searchId + " er data archive-e pawa jayni.");
+        writeLog("Not Found", "Data for ID: " + searchId + " not found in archive.");
       }
     });
 
-    return jsonResponse({ success: true, message: sentCount + " টি ইমেইল ব্রেকডাউনসহ সফলভাবে পাঠানো হয়েছে!" });
+    return jsonResponse({ success: true, message: sentCount + " emails sent successfully with full breakdown!" });
 
   } catch (err) {
     writeLog("Global Error", err.toString());
@@ -1395,4 +1414,50 @@ function updateSettingsData(e, currentUser) {
   }
   
   return jsonResponse({ success: true, message: "Settings updated successfully with leading zeros preserved!" });
+}
+
+function backupYesterdayMeals() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sourceSheet = ss.getSheetByName("Meals");
+  var targetSheet = ss.getSheetByName("MealsReplica") || ss.insertSheet("MealsReplica");
+  
+  // রেপ্লিকা শিট খালি থাকলে হেডার সেট করা
+  if (targetSheet.getLastRow() === 0) {
+    targetSheet.appendRow(["ID", "User ID", "Year", "Month", "Date", "Type", "Amount", "Backup_At"]);
+  }
+
+  // ১. গতকালকের তারিখ বের করা
+  var yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  
+  var targetYear = yesterday.getFullYear();
+  var targetMonth = yesterday.getMonth() + 1; // JS Month 0-11
+  var targetDay = yesterday.getDate();
+
+  // ২. সোর্স শিট থেকে ডাটা রিড করা
+  var data = sourceSheet.getDataRange().getValues();
+  var rowsToBackup = [];
+  var timestamp = new Date();
+
+  // ৩. লুপ চালিয়ে শুধুমাত্র গতকালকের রেকর্ডগুলো ফিল্টার করা
+  // কলাম ইনডেক্স: Year(2), Month(3), Date(4) [০ থেকে গণনা করলে]
+  for (var i = 1; i < data.length; i++) {
+    if (
+      data[i][2] == targetYear && 
+      data[i][3] == targetMonth && 
+      data[i][4] == targetDay
+    ) {
+      // অরিজিনাল ডাটার সাথে ব্যাকআপ নেওয়ার সময় যোগ করা (অপশনাল)
+      var backupRow = data[i].concat([timestamp]);
+      rowsToBackup.push(backupRow);
+    }
+  }
+
+  // ৪. যদি গতকালকের ডাটা পাওয়া যায় তবেই রেপ্লিকা শিটে অ্যাপেন্ড করা
+  if (rowsToBackup.length > 0) {
+    targetSheet.getRange(targetSheet.getLastRow() + 1, 1, rowsToBackup.length, rowsToBackup[0].length).setValues(rowsToBackup);
+    Logger.log(rowsToBackup.length + " rows backed up for date: " + targetDay + "/" + targetMonth + "/" + targetYear);
+  } else {
+    Logger.log("No data found for yesterday to backup.");
+  }
 }
