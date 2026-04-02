@@ -60,9 +60,23 @@ export default function DateRangesPage() {
   const isAdmin = userRole === "admin";
 
   const handleAutoCalculate = () => {
-    const eligible = members.filter((m) => m.name.toLowerCase() !== "omar");
-    if (eligible.length === 0)
-      return alert("Member list is empty. Please wait or refresh.");
+    const excludedNamesRaw = process.env.NEXT_PUBLIC_EXCLUDED_NAMES || "";
+
+    const excludedNames = excludedNamesRaw
+      .split(",")
+      .map((name) => name.trim().toLowerCase())
+      .filter((name) => name !== ""); // Remove empty strings from extra commas
+
+    const eligible = members.filter((m) => {
+      const memberName = m.name.toLowerCase();
+      return !excludedNames.includes(memberName);
+    });
+
+    if (eligible.length === 0) {
+      return alert(
+        "Member list is empty after exclusions. Please check your settings.",
+      );
+    }
 
     const daysInMonth = new Date(filterYear, filterMonth, 0).getDate();
     const numMembers = eligible.length;
