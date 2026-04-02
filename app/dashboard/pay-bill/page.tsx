@@ -27,6 +27,15 @@ export default function PaymentManagement() {
     }));
   }, []);
 
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  const years = useMemo(() => {
+    const arr = [];
+    for (let y = 2024; y <= currentYear; y++) arr.push(y);
+    return arr.reverse();
+  }, [currentYear]);
+
   useEffect(() => {
     const storedToken = localStorage.getItem("userToken");
     if (!storedToken) {
@@ -126,7 +135,7 @@ export default function PaymentManagement() {
             value={selectedYear}
             onChange={(e) => setSelectedYear(Number(e.target.value))}
           >
-            {[2024, 2025, 2026].map((y) => (
+            {years.map((y) => (
               <option key={y} value={y}>
                 {y}
               </option>

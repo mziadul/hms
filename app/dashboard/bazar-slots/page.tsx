@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import api from "@/utils/api";
 import Spinner from "@/components/Spinner";
 import { useRouter } from "next/navigation";
@@ -30,6 +30,14 @@ export default function DateRangesPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
+
+  const currentYear = now.getFullYear();
+
+  const years = useMemo(() => {
+    const arr = [];
+    for (let y = 2024; y <= currentYear; y++) arr.push(y);
+    return arr.reverse();
+  }, [currentYear]);
 
   useEffect(() => {
     const info = localStorage.getItem("userInfo");
@@ -211,7 +219,7 @@ export default function DateRangesPage() {
               onChange={(e) => setFilterYear(Number(e.target.value))}
               className="bg-white dark:bg-gray-700 p-1.5 px-3 rounded-lg font-bold text-xs outline-none border border-transparent focus:border-teal-500 transition-all"
             >
-              {[2026, 2025, 2024].map((y) => (
+              {years.map((y) => (
                 <option key={y} value={y}>
                   {y}
                 </option>
