@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { messaging } from "../firebase"; 
@@ -41,19 +41,15 @@ export default function DashboardLayout({ children }: Props) {
         return;
       }
 
-      // Axios এর ঝামেলা এড়াতে পিওর Fetch দিয়ে URL সাজানো হলো
+      // Axios এর ঝামেলা এড়াতে পিওর Fetch দিয়ে URL সাজানো হলো
       const requestUrl = `${gasUrl}?action=updateToken&token=${encodeURIComponent(fcmToken)}&userId=${userId}&userToken=${userToken || ""}`;
 
-      const response = await fetch(requestUrl, {
-        method: "POST"
-      });
+      const response = await api.post(requestUrl);
 
-      const result = await response.json();
-
-      if (result.success) {
+      if (response.data && response.data.success) {
         console.log("✅ Token successfully updated in Google Sheet!");
       } else {
-        console.error("❌ Backend error:", result.message);
+        console.error("❌ Backend error:", response.data?.message);
       }
 
     } catch (error) {
@@ -61,21 +57,26 @@ export default function DashboardLayout({ children }: Props) {
     }
   };
 
+  const tokenSentRef = useRef(false);
+
   // 👉 ৩. টোকেন জেনারেশন এবং পারমিশন রিকোয়েস্ট
   useEffect(() => {
     const requestPermissionAndGetToken = async () => {
+      if (tokenSentRef.current) return;
+
       try {
-        // ব্রাউজারে নোটিফিকেশনের পারমিশন চাওয়া
+        // ব্রাউজারে নোটিফিকেশনের পারমিশন চাওয়া
         const permission = await Notification.requestPermission();
         
         if (permission === 'granted' && messaging) {
-          // 👉 ২. আপনার দেওয়া VAPID কি এখানে বসানো হয়েছে
+          // 👉 ২. আপনার দেওয়া VAPID কি এখানে বসানো হয়েছে
           const token = await getToken(messaging, { 
             vapidKey: 'BOwEngkqAgHZXJWB5Z6wDA03dyKCK9tXt2vbmsPfOBT2arXcHZF1EfecsEA07BTYDHHEP41DhLYcHm-_dEQ_LXA' 
           });
           
           if (token) {
             console.log("User FCM Token:", token);
+            tokenSentRef.current = true;
             await updateTokenInBackend(token);
             // 💡 এই টোকেনটি আপনার ব্রাউজার কনসোলে প্রিন্ট হবে।
           }
