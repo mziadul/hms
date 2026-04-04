@@ -11,7 +11,50 @@ interface Props {
 }
 
 export default function DashboardLayout({ children }: Props) {
+ // 👉 ২. ব্যাকএন্ডে টোকেন আপডেট করার ফাংশন
+  const updateTokenInBackend = async (fcmToken: string) => {
+    try {
+      console.log("📡 Sending token to backend...");
 
+      const info = localStorage.getItem("userInfo");
+      const userToken = localStorage.getItem("userToken");
+
+      if (!info) {
+        console.log("❌ userInfo not found in localStorage!");
+        return;
+      }
+
+      const userData = JSON.parse(info);
+      const userId = userData.id; // ডাটাবেজে থাকা ইউজারের আইডি
+
+      if (!userId) {
+        console.log("❌ User ID missing inside userInfo!");
+        return;
+      }
+
+      console.log(`🚀 Triggering API call for User ID: ${userId}`);
+
+      await api.post(
+        `${process.env.NEXT_PUBLIC_GAS_URL}`,
+        null,
+        {
+          params: {
+            action: "updateToken",
+            token: fcmToken,
+            userId: userId,
+            userToken: userToken // অথরাইজেশনের টোকেন
+          }
+        }
+      );
+
+      console.log("✅ Token successfully updated in Google Sheet!");
+
+    } catch (error) {
+      console.error("❌ Failed to update token in sheet:", error);
+    }
+  };
+
+  // 👉 ৩. টোকেন জেনারেশন এবং পারমিশন রিকোয়েস্ট
   useEffect(() => {
     const requestPermissionAndGetToken = async () => {
       try {
