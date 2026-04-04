@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { messaging } from "../firebase"; 
 import { getToken } from "firebase/messaging";
+import api from "@/utils/api";
 
 interface Props {
   children: React.ReactNode;
