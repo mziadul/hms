@@ -3,12 +3,42 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
+import { messaging } from "../firebase"; 
+import { getToken } from "firebase/messaging";
 
 interface Props {
   children: React.ReactNode;
 }
 
 export default function DashboardLayout({ children }: Props) {
+
+  useEffect(() => {
+    const requestPermissionAndGetToken = async () => {
+      try {
+        // ব্রাউজারে নোটিফিকেশনের পারমিশন চাওয়া
+        const permission = await Notification.requestPermission();
+        
+        if (permission === 'granted' && messaging) {
+          // 👉 ২. আপনার দেওয়া VAPID কি এখানে বসানো হয়েছে
+          const token = await getToken(messaging, { 
+            vapidKey: 'BOwEngkqAgHZXJWB5Z6wDA03dyKCK9tXt2vbmsPfOBT2arXcHZF1EfecsEA07BTYDHHEP41DhLYcHm-_dEQ_LXA' 
+          });
+          
+          if (token) {
+            console.log("User FCM Token:", token);
+            // 💡 এই টোকেনটি আপনার ব্রাউজার কনসোলে প্রিন্ট হবে।
+          }
+        }
+      } catch (error) {
+        console.error("Error getting token:", error);
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      requestPermissionAndGetToken();
+    }
+  }, []);
+
   const router = useRouter();
   const pathname = usePathname();
   const [userRole, setUserRole] = useState<string | null>(null);
