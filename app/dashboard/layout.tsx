@@ -12,10 +12,10 @@ interface Props {
 }
 
 export default function DashboardLayout({ children }: Props) {
- // 👉 ২. ব্যাকএন্ডে টোকেন আপডেট করার ফাংশন
+ // 👉 ১. ব্যাকএন্ডে টোকেন আপডেট করার ফাংশন
   const updateTokenInBackend = async (fcmToken: string) => {
     try {
-      console.log("📡 Sending token to backend...");
+      console.log("📡 Sending token to backend function triggered...");
 
       const info = localStorage.getItem("userInfo");
       const userToken = localStorage.getItem("userToken");
@@ -35,20 +35,26 @@ export default function DashboardLayout({ children }: Props) {
 
       console.log(`🚀 Triggering API call for User ID: ${userId}`);
 
-      await api.post(
-        `${process.env.NEXT_PUBLIC_GAS_URL}`,
-        null,
-        {
-          params: {
-            action: "updateToken",
-            token: fcmToken,
-            userId: userId,
-            userToken: userToken // অথরাইজেশনের টোকেন
-          }
-        }
-      );
+      const gasUrl = process.env.NEXT_PUBLIC_GAS_URL;
+      if (!gasUrl) {
+        console.log("❌ NEXT_PUBLIC_GAS_URL is not defined in .env!");
+        return;
+      }
 
-      console.log("✅ Token successfully updated in Google Sheet!");
+      // Axios এর ঝামেলা এড়াতে পিওর Fetch দিয়ে URL সাজানো হলো
+      const requestUrl = `${gasUrl}?action=updateToken&token=${encodeURIComponent(fcmToken)}&userId=${userId}&userToken=${userToken || ""}`;
+
+      const response = await fetch(requestUrl, {
+        method: "POST"
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log("✅ Token successfully updated in Google Sheet!");
+      } else {
+        console.error("❌ Backend error:", result.message);
+      }
 
     } catch (error) {
       console.error("❌ Failed to update token in sheet:", error);
@@ -70,6 +76,7 @@ export default function DashboardLayout({ children }: Props) {
           
           if (token) {
             console.log("User FCM Token:", token);
+            await updateTokenInBackend(token);
             // 💡 এই টোকেনটি আপনার ব্রাউজার কনসোলে প্রিন্ট হবে।
           }
         }
