@@ -61,37 +61,35 @@ export default function DashboardLayout({ children }: Props) {
 
   // 👉 ৩. টোকেন জেনারেশন এবং পারমিশন রিকোয়েস্ট
   useEffect(() => {
-  const requestPermissionAndGetToken = async () => {
-    try {
-      const permission = await Notification.requestPermission();
-      
-      if (permission === 'granted' && messaging) {
-        const token = await getToken(messaging, { 
-          vapidKey: 'YOUR_VAPID_KEY' 
-        });
+    const requestPermissionAndGetToken = async () => {
+      if (tokenSentRef.current) return;
+
+      try {
+        // ব্রাউজারে নোটিফিকেশনের পারমিশন চাওয়া
+        const permission = await Notification.requestPermission();
         
-        if (token) {
-          // চেক করুন এই ব্রাউজার থেকে এই টোকেনটি আগে পাঠানো হয়েছে কি না
-          const lastSentToken = localStorage.getItem("lastFcmToken");
+        if (permission === 'granted' && messaging) {
+          // 👉 ২. আপনার দেওয়া VAPID কি এখানে বসানো হয়েছে
+          const token = await getToken(messaging, { 
+            vapidKey: 'BOwEngkqAgHZXJWB5Z6wDA03dyKCK9tXt2vbmsPfOBT2arXcHZF1EfecsEA07BTYDHHEP41DhLYcHm-_dEQ_LXA' 
+          });
           
-          if (lastSentToken !== token) {
-            console.log("🚀 Sending new device token to backend...");
+          if (token) {
+            console.log("User FCM Token:", token);
+            tokenSentRef.current = true;
             await updateTokenInBackend(token);
-            localStorage.setItem("lastFcmToken", token); // টোকেনটি সেভ করে রাখুন
-          } else {
-            console.log("✅ Token already synced for this device.");
+            // 💡 এই টোকেনটি আপনার ব্রাউজার কনসোলে প্রিন্ট হবে।
           }
         }
+      } catch (error) {
+        console.error("Error getting token:", error);
       }
-    } catch (error) {
-      console.error("Error getting token:", error);
-    }
-  };
+    };
 
-  if (typeof window !== "undefined") {
-    requestPermissionAndGetToken();
-  }
-}, []);
+    if (typeof window !== "undefined") {
+      requestPermissionAndGetToken();
+    }
+  }, []);
 
   const router = useRouter();
   const pathname = usePathname();
