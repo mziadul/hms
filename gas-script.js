@@ -14,6 +14,7 @@ function doPost(e) {
   
   // Login is public
   if (action === 'login') return loginUser(e);
+  if (action === 'updateToken') return updateUserTokenOnly(e);
 
   // Security Barrier for all other POST actions
   var currentUser = getAuthorizedUser(e.parameter.token);
@@ -596,6 +597,14 @@ function upsertDateRanges(e, currentUser) {
 
     // শিট থেকে একদম 'তাজা' ডেটা রিড করা (লক হওয়ার ঠিক পরেই)
     var sheetData = sheet.getDataRange().getValues();
+
+    // লুপের বাইরে বর্তমান সর্বোচ্চ আইডি একবার বের করে নিন
+    var lastRow = sheet.getLastRow();
+    var currentMaxId = 0;
+    if (lastRow > 1) {
+      currentMaxId = parseInt(sheetData[sheetData.length - 1][0]) || 0;
+    }
+
     var skippedRows = [];
     var successCount = 0;
 
@@ -634,11 +643,16 @@ function upsertDateRanges(e, currentUser) {
 
       // নতুন ইনসার্ট (যদি আইডি না থাকে)
       if (!found) {
-        var newId = (sheet.getLastRow() > 0) ? parseInt(sheetData[sheetData.length-1][0]) + 1 : 1;
-        if(isNaN(newId)) newId = Utilities.getUuid().substring(0,8);
+        // var newId = (sheet.getLastRow() > 0) ? parseInt(sheetData[sheetData.length-1][0]) + 1 : 1;
+        // if(isNaN(newId)) newId = Utilities.getUuid().substring(0,8);
+
+        // প্রতিবার লুপে আইডি ১ করে বাড়বে
+        currentMaxId++;
+        var newId = currentMaxId;
 
         sheet.appendRow([
-          item.id || newId,
+          // item.id || newId,
+          newId,
           String(item.userId),
           filterYear,
           filterMonth,
@@ -1459,5 +1473,282 @@ function backupYesterdayMeals() {
     Logger.log(rowsToBackup.length + " rows backed up for date: " + targetDay + "/" + targetMonth + "/" + targetYear);
   } else {
     Logger.log("No data found for yesterday to backup.");
+  }
+}
+
+// আপনার সার্ভিস অ্যাকাউন্টের তথ্য (আগের মতোই থাকবে)
+const CREDENTIALS = {
+  "project_id": "hostel-management-system-ce8ac",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvwIBADANBgkqhkiG9w0BAQEFAASCBKkwggSlAgEAAoIBAQDBFX3zt/zgquKP\nTDy+JwKMuohKmDtwk5j4Inaw7MwczFgnmpupE/e5E+qLBVaGSvcjO+y9ERwCFz/X\n1inCKTYGUbGi7BwFC/IWWF36zbjIMeiLRVa4q/hi1h9TgtWQM5f+D5cOssQT+dbY\n8GGFda+OMKZpBMZFh8hZRNilTJ6A+PpnZJ5hatcs5RgEoy4rLrz7dGoyGYqoyaxS\nSXdBDmfiY8ETNhydpTvpEVtjORDJ0QxrTFDSrmuIIllNHYDywHsig0VDh6iJHkW7\nA9nzjmXigXHM5nBtSFtMaKBQskATKXjHlTgOoTzgKRQwfXPkc8B4R9A64Qmk0VM+\n4RzsSrqlAgMBAAECggEABPeek+SJ1uXOik01ytaKFEDAPNsJvG2vo8KPNyIAZkVD\nh1FM696dot9GS2lJvo6zKO7jukF0bQFYHR9fV6VjxGnZng1g8yhJhBWl5UvhkxTl\nnJ+eCYYzD6feinF1OQ56vIh+JFyo+rKUumQEvkA20fuibFU5HJTPrKw+vpHoCf1S\nSFjcVbCxgrrfakZlNsh3OUoSBhBxdlxA81eCIkza4tndku7kOPSE/7N+Njnxs5LD\nKOTZX/ozA+qHjcRFnQAeZt/18k1bf1WPsgH844e5cMwVbTpc43jeIlpFD9KgvZAy\nSKXoO0VI/j07LwTZDb7R99dO1lEpIS83IvKKb9fQCQKBgQDydPlMdCqD/oYz8TbT\n8YtRkyiVOTSWOrL+Bj1yCmDrFzlD1Y3oUVOj/WDw5Nm+VzUYzDJ5QRIuPipzUgDr\nq4Z0/E4YGa7ZTSweOFr7tSR956QLJ0XooqZYWolN19GygETfO0ZMGgpYba0gxDCD\nkoAkclwpJlcV0hzipHLWze3vTwKBgQDL3oGwSWm/EvtDQZxpOubVu06rWRbUbAGH\nLyDAARSOwVWL//CbklsDsU7y4ytneYX5v0oWADapE63hrzgCGu4yCBavGPJZTWYA\ntILFuBhfjLPDX4Jy3OP4IX0FBTkkKzJdSq9bh6SEjrEumiaqFKC/wbP6CoSR/I9X\nrU7I8fzZywKBgQCW/UunVgyICMCwpj4bvSei1H8IdwiNqd6AHYi0dUwn+115Jgvq\nqoLo9Ekjm5ESXSK+36NrKZ/V1nb/PAlAup/QSLOlhJED2HBqHXRjnkosck4ReBKs\nLmZjTXaGWKnJfOHnFvXPPMRGj36qkiMYPOq6R9Gm+q5u81tztS+jH7lWNwKBgQDK\nAX3r2bJoXDyQFfEP7AdSfLik3C/c5/BTrQT8e5WNJlDH2iDlZg29CPG7hhE6BJYW\nM88LIccHnbJLz7zliR3AgXdIpKVui1ypEjQKCjJMazSsQHUXr3xMH5KraNOH3S2Y\ndypuvWbs2h8CmEf7e1kU6LCW79kQdnrqW5WXUwBCJQKBgQCVwLv/GGxjMbdZMKnd\nZZDfj7JXKVYuncyD6BO5ILS91R0CwdrGnfCB5hBadNUdySo6/YcXsg0MIEO6UHYi\paBWSbBwKM8IyKvsCO9DxlRSXVA7QWnKzHUEemnHRgxAlPNJ0VBBfz6mpTtIWNOn\n8rhoP2Xxr4xp10Sa00wbMdkV/A==\n-----END PRIVATE KEY-----\n",
+  "client_email": "firebase-adminsdk-fbsvc@hostel-management-system-ce8ac.iam.gserviceaccount.com"
+};
+
+function checkAndSendTomorrowMeals() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // 👉 ১. মিলের শিট এবং ইউজার শিট কল করা
+  var mealSheet = ss.getSheetByName("Meals");
+  var userSheet = ss.getSheetByName("Users");
+  
+  if (!mealSheet || !userSheet) {
+    Logger.log("Error: Meals ba Users sheet pawa jayni!");
+    return;
+  }
+
+  // আগামীকালের তারিখ বের করা
+  var today = new Date();
+  var tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  var tYear = tomorrow.getFullYear().toString();
+  var tMonth = (tomorrow.getMonth() + 1).toString();
+  var tDate = tomorrow.getDate().toString();
+
+  var mealData = mealSheet.getDataRange().getValues();
+  
+  var totalB = 0;
+  var totalL = 0;
+  var totalD = 0;
+
+  // আগামীকালের মিল ফিল্টার করা
+  mealData.slice(1).forEach(function(r) {
+    var rowYear = String(r[2]);
+    var rowMonth = String(r[3]);
+    var rowDate = String(r[4]);
+    var type = String(r[5]);
+    var amount = parseFloat(r[6]) || 0;
+
+    if (rowYear === tYear && rowMonth === tMonth && rowDate === tDate) {
+      if (type === "B") totalB += amount;
+      if (type === "L") totalL += amount;
+      if (type === "D") totalD += amount;
+    }
+  });
+
+  var messageBody = "Breakfast: " + totalB + ", Lunch: " + totalL + ", Dinner: " + totalD;
+  var messageTitle = "আগামীকালের মিলের আপডেট! 🍽️";
+
+  // 👉 ২. Users শিট থেকে সবার টোকেন তুলে নেওয়া
+  var userData = userSheet.getDataRange().getValues();
+  var sentCount = 0;
+
+  // লুপ চালিয়ে সবার টোকেন বের করা (প্রথম রো বাদ দিয়ে)
+  userData.slice(1).forEach(function(row) {
+    // জাভাস্ক্রিপ্টে ইনডেক্স ০ থেকে শুরু হয়, তাই ৯ নম্বর কলাম মানে ইনডেক্স হবে ৮
+    var token = row[8]; 
+    
+    // টোকেনটি যদি ফাঁকা না থাকে, তবেই নোটিফিকেশন পাঠাবে
+    if (token && token.trim() !== "") {
+      sendFCMNotification(token.trim(), messageTitle, messageBody);
+      sentCount++;
+    }
+  });
+
+  Logger.log("Total notifications sent: " + sentCount);
+}
+
+// ৩. FCM HTTP v1 এপিআই দিয়ে নোটিফিকেশন পাঠানোর ফাংশন (আগের মতোই থাকবে)
+function sendFCMNotification(token, title, body) {
+  var jwtToken = getJwtToken();
+  if (!jwtToken) return;
+
+  var fcmUrl = "https://fcm.googleapis.com/v1/projects/" + CREDENTIALS.project_id + "/messages:send";
+
+  var payload = {
+    "message": {
+      "token": token,
+      "notification": {
+        "title": title,
+        "body": body
+      },
+      "webpush": {
+        "fcm_options": {
+          "link": "https://hostel-management-system-ce8ac.firebaseapp.com/dashboard"
+        }
+      }
+    }
+  };
+
+  var options = {
+    "method": "post",
+    "contentType": "application/json",
+    "headers": {
+      "Authorization": "Bearer " + jwtToken
+    },
+    "payload": JSON.stringify(payload),
+    "muteHttpExceptions": true
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(fcmUrl, options);
+    Logger.log("Token: " + token.substring(0, 10) + "... | Response: " + response.getContentText());
+  } catch (error) {
+    Logger.log("FCM Fetch Error: " + error.toString());
+  }
+}
+
+// ৪. গুগলের সিকিউর JWT টোকেন তৈরি করার ফাংশন (Do not touch this)
+function getJwtToken() {
+  var header = { "alg": "RS256", "typ": "JWT" };
+  var now = Math.floor(Date.now() / 1000);
+  
+  var claimSet = {
+    "iss": CREDENTIALS.client_email,
+    "scope": "https://www.googleapis.com/auth/firebase.messaging",
+    "aud": "https://oauth2.googleapis.com/token",
+    "iat": now,
+    "exp": now + 3600
+  };
+
+  var encodedHeader = Utilities.base64EncodeWebSafe(JSON.stringify(header));
+  var encodedClaimSet = Utilities.base64EncodeWebSafe(JSON.stringify(claimSet));
+  var signatureInput = encodedHeader + "." + encodedClaimSet;
+
+  var signature = Utilities.computeRsaSha256Signature(signatureInput, CREDENTIALS.private_key);
+  var encodedSignature = Utilities.base64EncodeWebSafe(signature);
+
+  var assertion = signatureInput + "." + encodedSignature;
+
+  var tokenUrl = "https://oauth2.googleapis.com/token";
+  var options = {
+    "method": "post",
+    "contentType": "application/x-www-form-urlencoded",
+    "payload": "grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=" + assertion,
+    "muteHttpExceptions": true
+  };
+
+  try {
+    var response = UrlFetchApp.fetch(tokenUrl, options);
+    var json = JSON.parse(response.getContentText());
+    return json.access_token;
+  } catch (e) {
+    Logger.log("JWT Error: " + e.toString());
+    return null;
+  }
+}
+
+// শুধু টোকেন আপডেট করার মেথড
+function updateUserTokenOnly(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('Users');
+  var data = sheet.getDataRange().getValues();
+  
+  // ফ্রন্টএন্ড থেকে পাঠানো ডেটা
+  var userId = String(e.parameter.userId);
+  var newToken = String(e.parameter.token);
+  
+  if (!userId || !newToken) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, message: "Missing userId or token" }))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // লুপ চালিয়ে ইউজারকে খুঁজে বের করা
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === userId) {
+      // ৯ নম্বর কলামে (ইনডেক্স ৮) শুধু টোকেনটি বসিয়ে দেওয়া হলো
+      sheet.getRange(i + 1, 9).setValue(newToken);
+      
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: "Token updated successfully" }))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({ success: false, message: "User not found" }))
+                       .setMimeType(ContentService.MimeType.JSON);
+}
+
+function autoCarryForwardMeals() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var mealSheet = ss.getSheetByName('Meals');
+  
+  if (!mealSheet) {
+    Logger.log("Meals sheet not found!");
+    return;
+  }
+  
+  var data = mealSheet.getDataRange().getValues();
+  
+  // 👉 ১. অটো-ইনক্রিমেন্ট আইডি বের করা
+  var nextId = 1; // যদি শিট একদম খালি থাকে, তবে আইডি ১ থেকে শুরু হবে
+  if (data.length > 1) {
+    // শেষ রো-এর প্রথম কলামের (ইনডেক্স ০) আইডিটা নিচ্ছি
+    var lastId = parseInt(data[data.length - 1][0]); 
+    if (!isNaN(lastId)) {
+      nextId = lastId + 1; // আগের আইডির সাথে ১ যোগ করা হলো
+    }
+  }
+  
+  // 👉 ২. আজকের এবং আগামীকালের তারিখ বের করা
+  var today = new Date();
+  var tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+  
+  // আজকের বছর, মাস ও দিন
+  var tYear = String(today.getFullYear());
+  var tMonth = String(today.getMonth() + 1); 
+  var tDate = String(today.getDate());
+  
+  // আগামীকালের বছর, মাস ও দিন
+  var tomYear = String(tomorrow.getFullYear());
+  var tomMonth = String(tomorrow.getMonth() + 1);
+  var tomDate = String(tomorrow.getDate());
+  
+  Logger.log("Today: " + tYear + "-" + tMonth + "-" + tDate);
+  Logger.log("Tomorrow: " + tomYear + "-" + tomMonth + "-" + tomDate);
+  
+  // 👉 ৩. আগামীকালের ডাটা অলরেডি আছে এমন ইউজারদের ট্র্যাক করা
+  var tomorrowUsers = new Set();
+  var todayData = [];
+  
+  // ১ম রো (হেডার) বাদ দিয়ে লুপ চালানো
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var uId = String(row[1]);  // কলাম ১: userId
+    var yr = String(row[2]);   // কলাম ২: year
+    var mnth = String(row[3]); // কলাম ৩: month
+    var dt = String(row[4]);   // কলাম ৪: date
+    
+    // যদি আগামীকালের ডাটা অলরেডি থেকে থাকে
+    if (yr === tomYear && mnth === tomMonth && dt === tomDate) {
+      tomorrowUsers.add(uId);
+    }
+    
+    // যদি আজকের ডাটা হয়, তবে সেটা স্টোর করি
+    if (yr === tYear && mnth === tMonth && dt === tDate) {
+      todayData.push(row);
+    }
+  }
+  
+  Logger.log("Today's total entries: " + todayData.length);
+  
+  // 👉 ৪. নতুন ডাটা শিটে পুশ করা
+  var rowsToAdd = [];
+  
+  for (var j = 0; j < todayData.length; j++) {
+    var currentRow = todayData[j];
+    var currentUserId = String(currentRow[1]);
+    
+    // যদি আগামীকালের তালিকায় এই ইউজার অলরেডি না থাকে, তবেই আমরা ডাটা ক্যারি ফরোয়ার্ড করব
+    if (!tomorrowUsers.has(currentUserId)) {
+      var newRow = [...currentRow]; 
+      
+      // 🔥 এখানে আইডি সেট করা হচ্ছে (১, ১ করে বাড়বে)
+      newRow[0] = nextId; 
+      nextId++; // পরবর্তী রো-এর জন্য আইডি ১ বাড়িয়ে দেওয়া হলো
+      
+      // আগামীকালের তারিখ, মাস ও বছর বসিয়ে দিলাম
+      newRow[2] = tomYear;
+      newRow[3] = tomMonth;
+      newRow[4] = tomDate;
+      
+      rowsToAdd.push(newRow);
+    }
+  }
+  
+  // ডাটা এড করার পালা
+  if (rowsToAdd.length > 0) {
+    mealSheet.getRange(mealSheet.getLastRow() + 1, 1, rowsToAdd.length, rowsToAdd[0].length).setValues(rowsToAdd);
+    Logger.log("Successfully carried forward " + rowsToAdd.length + " entries for tomorrow!");
+  } else {
+    Logger.log("No new entries needed to be carried forward.");
   }
 }
