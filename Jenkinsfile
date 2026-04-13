@@ -33,6 +33,15 @@ pipeline {
                 sh 'npm run build'
             }
         }
+
+        stage('Deploy with PM2') {
+            steps {
+                echo 'Starting the application...'
+                // '|| true' ensures the build doesn't fail if the app isn't already running
+                sh 'pm2 delete nextjs-app || true'
+                sh 'pm2 start npm --name "nextjs-app" -- start'
+            }
+        }
     }
 
     post {
