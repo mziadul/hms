@@ -36,8 +36,10 @@ pipeline {
 
         stage('Deploy with PM2') {
             steps {
-                echo 'Starting the application...'
-                // '|| true' ensures the build doesn't fail if the app isn't already running
+                echo 'Ensuring PM2 is installed and starting app...'
+                // Check if pm2 exists, if not, install it
+                sh 'command -v pm2 >/dev/null 2>&1 || npm install -g pm2'
+                
                 sh 'pm2 delete nextjs-app || true'
                 sh 'pm2 start npm --name "nextjs-app" -- start'
             }
