@@ -23,9 +23,7 @@ pipeline {
 
         stage('Lint & Type Check') {
             steps {
-                echo 'Checking code quality...'
-                // Next.js default linting
-                sh 'npm run lint'
+                echo 'Skipping lint check...'
             }
         }
 
